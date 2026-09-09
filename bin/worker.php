@@ -44,6 +44,7 @@ $bootPest = (static function (): void {
     ]);
 
     $composerAutoloadFiles = [
+        getcwd().DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR.'autoload.php',
         dirname(__DIR__, 3).DIRECTORY_SEPARATOR.'autoload.php',
         dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR.'autoload.php',
         dirname(__DIR__).DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR.'autoload.php',
