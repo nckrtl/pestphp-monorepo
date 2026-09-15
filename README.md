@@ -14,11 +14,9 @@ This fork is based on Pest **5.1.4**. It keeps Pest's API, `Pest\` namespace, co
 
 The changes include [Pest PR #1809](https://github.com/pestphp/pest/pull/1809), [Pest PR #1834](https://github.com/pestphp/pest/pull/1834), and the consumer-autoloader fix from Orbit's local fork.
 
-## Package status
+## Installation
 
-The source is published on GitHub. Packagist registration and the first tagged release are pending.
-
-After that release is available, install the fork in your Composer project:
+Install the fork from [Packagist](https://packagist.org/packages/nckrtl/pestphp-monorepo) in your Composer project:
 
 ```bash
 composer require --dev nckrtl/pestphp-monorepo

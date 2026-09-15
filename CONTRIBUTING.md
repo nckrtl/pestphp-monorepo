@@ -32,8 +32,16 @@ Run the local checks, parallel tests, integration tests, and a Composer consumer
 
 ## Prepare a release
 
-Register `https://github.com/nckrtl/pestphp-monorepo` on Packagist before the first release. Releases use the fork's own version sequence, starting with `v1.0.0`; `replace.pestphp/pest` records the upstream version provided by that release.
+Releases use the fork's own version sequence, starting with `v1.0.0`; `replace.pestphp/pest` records the upstream version provided by that release. A push to `main` runs the test and static-analysis workflows. It does not create a release. The Packagist webhook updates the package when a release tag is pushed.
 
-Publish a release tag only after the checks pass. Push only the fork's release tag, not the upstream tags retained in the local repository. Composer derives the package version from the release tag; do not add a `version` field to `composer.json`.
+Publish an explicit release tag after the checks pass, then create its GitHub release:
+
+```bash
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin refs/tags/v1.0.0
+gh release create v1.0.0 --verify-tag --title v1.0.0 --notes-file /path/to/release-notes.md
+```
+
+Use the next version for later releases. Push only the fork's release tag, not the upstream tags retained in the local repository. Composer derives the package version from the release tag; do not add a `version` field to `composer.json`.
 
 This repository can be cloned inside another project's `packages/` directory for development. It remains an independent Git repository. Consumers install published releases through Composer; they do not need a path repository or a source-directory export process.
