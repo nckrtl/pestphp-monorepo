@@ -21,12 +21,12 @@ The current base is Pest 5.1.4, commit `e68976ea9da26e57ce74bf6ac4d638ded9151771
 
 ```bash
 git remote add upstream https://github.com/pestphp/pest.git
-git fetch upstream --tags
+git fetch --no-tags upstream 'refs/tags/*:refs/tags/upstream/*'
 git switch -c update-pest-<version>
-git merge <upstream-tag>
+git merge upstream/<upstream-tag>
 ```
 
-If the `upstream` remote already exists, use it. Resolve conflicts while retaining the fork's package name, support links, replacement version, and tests. Update the exact `replace.pestphp/pest` version and the base recorded in this document and the README. Remove fork changes when the upstream release provides the same behavior.
+If the `upstream` remote already exists, use it. Keep upstream tags under `upstream/` so Pest's historical versions cannot collide with the fork's release tags. Resolve conflicts while retaining the fork's package name, support links, replacement version, and tests. Update the exact `replace.pestphp/pest` version and the base recorded in this document and the README. Remove fork changes when the upstream release provides the same behavior.
 
 Run the local checks, parallel tests, integration tests, and a Composer consumer installation before merging an update. Verify that the consumer installs the fork without a second copy of Pest and discovers official Pest plugins. Exercise TIA in a monorepo subdirectory and a linked worktree.
 
