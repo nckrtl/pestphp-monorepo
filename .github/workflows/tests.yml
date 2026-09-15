@@ -34,7 +34,7 @@ jobs:
       with:
         php-version: ${{ matrix.php }}
         tools: composer:v2
-        coverage: pcov
+        coverage: none
         extensions: sockets
 
     - name: Get Composer cache directory
