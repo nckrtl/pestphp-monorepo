@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+package_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+consumer_root="$(mktemp -d)"
+trap 'rm -rf -- "$consumer_root"' EXIT
+
+export PEST_FORK_SOURCE="$package_root"
+export PEST_CONSUMER_ROOT="$consumer_root"
+composer --working-dir="$package_root" archive --format=zip --dir="$consumer_root" --file=package
+
+php <<'PHP'
+<?php
+$root = getenv('PEST_CONSUMER_ROOT');
+mkdir($root.'/apps/api/tests', 0755, true);
+$package = json_decode(file_get_contents(getenv('PEST_FORK_SOURCE').'/composer.json'), true, flags: JSON_THROW_ON_ERROR);
+$package['version'] = 'dev-main';
+$package['dist'] = ['type' => 'zip', 'url' => $root.'/package.zip'];
+$composer = [
+    'name' => 'nckrtl/pest-monorepo-consumer-test',
+    'require-dev' => [
+        'nckrtl/pestphp-monorepo' => 'dev-main',
+        'pestphp/pest-plugin-laravel' => '^5.0',
+    ],
+    'repositories' => [[
+        'type' => 'package',
+        'package' => $package,
+    ]],
+    'config' => ['allow-plugins' => ['pestphp/pest-plugin' => true]],
+];
+file_put_contents($root.'/apps/api/composer.json', json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
+file_put_contents($root.'/.gitignore', "vendor/\n/worktree/\n/tia/\n");
+file_put_contents($root.'/apps/api/phpunit.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="vendor/autoload.php" colors="true">
+    <testsuites><testsuite name="consumer"><directory>tests</directory></testsuite></testsuites>
+</phpunit>
+XML);
+file_put_contents($root.'/apps/api/tests/Pest.php', "<?php\npest()->tia()->directory(getenv('PEST_CONSUMER_ROOT').'/tia');\n");
+file_put_contents($root.'/apps/api/tests/ConsumerTest.php', <<<'TEST'
+<?php
+
+it('loads the fork and official plugins', function () {
+    expect(Composer\InstalledVersions::isInstalled('nckrtl/pestphp-monorepo'))->toBeTrue()
+        ->and(Composer\InstalledVersions::getVersionRanges('pestphp/pest'))->toContain('5.1.4')
+        ->and(class_exists(Pest\Plugins\Tia\GitRepository::class))->toBeTrue()
+        ->and(function_exists('Pest\Laravel\get'))->toBeTrue()
+        ->and(Pest\Support\Backtrace::file())->toBe(__FILE__);
+});
+TEST);
+PHP
+
+git -C "$consumer_root" init --quiet --initial-branch=main
+git -C "$consumer_root" config user.name 'Pest consumer test'
+git -C "$consumer_root" config user.email 'pest-consumer@example.invalid'
+git -C "$consumer_root" remote add origin https://github.com/nckrtl/pestphp-monorepo.git
+
+cd "$consumer_root/apps/api"
+composer install --no-interaction --prefer-dist --no-progress
+
+test ! -e vendor/pestphp/pest
+test ! -L vendor/nckrtl/pestphp-monorepo
+
+git -C "$consumer_root" add .
+git -C "$consumer_root" commit --quiet -m 'Create monorepo consumer fixture'
+git -C "$consumer_root" update-ref refs/remotes/origin/main HEAD
+git -C "$consumer_root" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+
+vendor/bin/pest --compact
+vendor/bin/pest --parallel --processes=2 --compact
+vendor/bin/pest --tia --compact
+vendor/bin/pest --tia --parallel --processes=2 --compact
+
+git -C "$consumer_root" worktree add --quiet -b consumer-worktree "$consumer_root/worktree"
+cd "$consumer_root/worktree/apps/api"
+composer install --no-interaction --prefer-dist --no-progress
+vendor/bin/pest --tia --compact
+vendor/bin/pest --tia --parallel --processes=2 --compact

@@ -10,9 +10,10 @@ Use PHP 8.4 or later and Composer 2:
 composer install
 composer test:affected
 composer check
+composer test:consumer
 ```
 
-`test:affected` runs the TIA unit tests and monorepo feature regressions. `check` validates the package, checks formatting and types, and runs the unit suite. The full upstream commands remain available, including `composer test:parallel` and `composer test:integration`.
+`test:affected` runs the TIA unit tests and monorepo feature regressions. `check` validates the package, checks formatting and types, and runs the unit suite. `test:consumer` installs the renamed fork and the official Laravel plugin into a temporary monorepo project, then runs plain, parallel, and TIA tests, including from a linked worktree. The full upstream commands remain available, including `composer test:parallel` and `composer test:integration`.
 
 ## Update upstream
 

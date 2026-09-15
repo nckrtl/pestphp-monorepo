@@ -2,10 +2,8 @@ name: Static Analysis
 
 on:
   push:
-    branches: [5.x]
+    branches: [main]
   pull_request:
-  schedule:
-    - cron: '0 9 * * *'
 
 concurrency:
   group: static-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -16,7 +14,6 @@ permissions:
 
 jobs:
   static:
-    if: github.event_name != 'schedule' || github.repository == 'pestphp/pest'
     name: Static Tests
 
     runs-on: ubuntu-latest
@@ -54,7 +51,7 @@ jobs:
 
     - name: Install Dependencies
       env:
-        COMPOSER_ROOT_VERSION: 5.x-dev
+        COMPOSER_ROOT_VERSION: 1.x-dev
       run: composer update --${{ matrix.dependency-version }} --no-interaction --no-progress --ansi
 
     - name: Profanity Check

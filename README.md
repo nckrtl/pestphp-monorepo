@@ -8,7 +8,8 @@ This fork is based on Pest **5.1.4**. It keeps Pest's API, `Pest\` namespace, co
 
 - Resolve changed files and historical file contents relative to each Composer project.
 - Keep TIA baseline identities separate for projects in the same repository.
-- Discover Git configuration in monorepo subdirectories and linked worktrees.
+- Discover ancestor Git configuration for monorepo subdirectories and keep worktree runs isolated.
+- Resolve caller locations without depending on the installed package directory name.
 - Load the consuming project's Composer autoloader when Pest is linked locally or starts parallel workers.
 
 The changes include [Pest PR #1809](https://github.com/pestphp/pest/pull/1809), [Pest PR #1834](https://github.com/pestphp/pest/pull/1834), and the consumer-autoloader fix from Orbit's local fork.

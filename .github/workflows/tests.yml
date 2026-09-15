@@ -2,10 +2,8 @@ name: Tests
 
 on:
   push:
-    branches: [5.x]
+    branches: [main]
   pull_request:
-  schedule:
-    - cron: '0 9 * * *'
 
 concurrency:
   group: tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -16,19 +14,16 @@ permissions:
 
 jobs:
   tests:
-    if: github.event_name != 'schedule' || github.repository == 'pestphp/pest'
-
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: true
       matrix:
         os: [ubuntu-latest, macos-latest] # windows-latest
-        symfony: ['8.0']
         php: ['8.4', '8.5']
         dependency_version: [prefer-stable]
 
-    name: PHP ${{ matrix.php }} - Symfony ^${{ matrix.symfony }} - ${{ matrix.os }} - ${{ matrix.dependency_version }}
+    name: PHP ${{ matrix.php }} - ${{ matrix.os }} - ${{ matrix.dependency_version }}
 
     steps:
     - name: Checkout
@@ -39,7 +34,7 @@ jobs:
       with:
         php-version: ${{ matrix.php }}
         tools: composer:v2
-        coverage: none
+        coverage: pcov
         extensions: sockets
 
     - name: Get Composer cache directory
@@ -51,9 +46,8 @@ jobs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
       with:
         path: ${{ steps.composer-cache.outputs.dir }}
-        key: ${{ matrix.os }}-php-${{ matrix.php }}-symfony-${{ matrix.symfony }}-composer-${{ hashFiles('**/composer.json', '**/composer.lock') }}
+        key: ${{ matrix.os }}-php-${{ matrix.php }}-composer-${{ hashFiles('**/composer.json', '**/composer.lock') }}
         restore-keys: |
-          ${{ matrix.os }}-php-${{ matrix.php }}-symfony-${{ matrix.symfony }}-composer-
           ${{ matrix.os }}-php-${{ matrix.php }}-composer-
 
     - name: Setup Problem Matches
@@ -64,8 +58,17 @@ jobs:
     - name: Install PHP dependencies
       shell: bash
       env:
-        COMPOSER_ROOT_VERSION: 5.x-dev
-      run: composer update --${{ matrix.dependency_version }} --no-interaction --no-progress --ansi --with="symfony/console:^${{ matrix.symfony }}"
+        COMPOSER_ROOT_VERSION: 1.x-dev
+      run: composer update --${{ matrix.dependency_version }} --no-interaction --no-progress --ansi
+
+    - name: Validate Package
+      run: composer validate --strict
+
+    - name: Monorepo Regressions
+      run: composer test:affected
+
+    - name: Composer Consumer
+      run: composer test:consumer
 
     - name: Unit Tests
       run: composer test:unit

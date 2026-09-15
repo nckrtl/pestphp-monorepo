@@ -1,6 +1,6 @@
 {
-    "name": "pestphp/pest",
-    "description": "The elegant PHP Testing Framework.",
+    "name": "nckrtl/pestphp-monorepo",
+    "description": "Pest with test-impact analysis for Composer monorepos and Git worktrees.",
     "keywords": [
         "php",
         "framework",
@@ -105,7 +105,18 @@
             "@test:unit",
             "@test:parallel",
             "@test:integration"
-        ]
+        ],
+        "test:affected": [
+            "@php bin/pest tests/Unit/Plugins/Tia --test-suffix=.php --compact",
+            "@php bin/pest tests/Features/Tia/BranchShapes.php --compact"
+        ],
+        "check": [
+            "@composer validate --strict",
+            "@test:lint",
+            "@test:type:check",
+            "@test:unit"
+        ],
+        "test:consumer": "bash scripts/test-consumer"
     },
     "extra": {
         "pest": {
@@ -137,5 +148,13 @@
                 "extension.neon"
             ]
         }
+    },
+    "homepage": "https://github.com/nckrtl/pestphp-monorepo",
+    "support": {
+        "issues": "https://github.com/nckrtl/pestphp-monorepo/issues",
+        "source": "https://github.com/nckrtl/pestphp-monorepo"
+    },
+    "replace": {
+        "pestphp/pest": "5.1.4"
     }
 }
