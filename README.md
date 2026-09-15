@@ -1,47 +1,40 @@
-<p align="center">
-    <img src="https://raw.githubusercontent.com/pestphp/art/master/v5/social.png" width="600" alt="PEST">
-    <p align="center">
-        <a href="https://github.com/pestphp/pest/actions"><img alt="GitHub Workflow Status (5.x)" src="https://img.shields.io/github/actions/workflow/status/pestphp/pest/tests.yml?branch=5.x&label=Tests%205.x"></a>
-        <a href="https://packagist.org/packages/pestphp/pest"><img alt="Total Downloads" src="https://img.shields.io/packagist/dt/pestphp/pest"></a>
-        <a href="https://packagist.org/packages/pestphp/pest"><img alt="Latest Version" src="https://img.shields.io/packagist/v/pestphp/pest"></a>
-        <a href="https://packagist.org/packages/pestphp/pest"><img alt="License" src="https://img.shields.io/packagist/l/pestphp/pest"></a>
-        <a href="https://whyphp.dev"><img src="https://img.shields.io/badge/Why_PHP-in_2026-7A86E8?style=flat-square&labelColor=18181b" alt="Why PHP in 2026"></a>
-        <a href="https://youtube.com/@nunomaduro?sub_confirmation=1"><img alt="YouTube Channel Subscribers" src="https://img.shields.io/youtube/channel/subscribers/UCO_hYZF2gb_CyG5sA7ArlGg?style=flat&label=youtube&color=brightgreen"></a>
-    </p>
-</p>
+# Pest PHP Monorepo
 
-------
+`nckrtl/pestphp-monorepo` is a fork of [Pest](https://pestphp.com) with test-impact analysis (TIA) support for Composer projects inside a Git monorepo and Git worktrees.
 
-> Pest v5 Now Available: **[Read the announcement »](https://pestphp.com/docs/pest5-now-available)**.
+This fork is based on Pest **5.1.4**. It keeps Pest's API, `Pest\` namespace, command, and plugin support. It is maintained independently by nckrtl and is not an official Pest release.
 
-**Pest** is an elegant testing framework for PHP developers and AI agents.
+## Changes
 
-- Explore our docs at **[pestphp.com »](https://pestphp.com)**
-- Follow the creator Nuno Maduro:
-    - YouTube: **[youtube.com/@nunomaduro](https://youtube.com/@nunomaduro)** — Videos every week
-    - Twitch: **[twitch.tv/nunomaduro](https://twitch.tv/nunomaduro)** — Live coding on Mondays, Wednesdays, and Fridays at 9PM UTC
-    - Twitter / X: **[x.com/enunomaduro](https://x.com/enunomaduro)**
-    - LinkedIn: **[linkedin.com/in/nunomaduro](https://www.linkedin.com/in/nunomaduro)**
-    - Instagram: **[instagram.com/enunomaduro](https://www.instagram.com/enunomaduro)**
-    - Tiktok: **[tiktok.com/@enunomaduro](https://www.tiktok.com/@enunomaduro)**
+- Resolve changed files and historical file contents relative to each Composer project.
+- Keep TIA baseline identities separate for projects in the same repository.
+- Discover Git configuration in monorepo subdirectories and linked worktrees.
+- Load the consuming project's Composer autoloader when Pest is linked locally or starts parallel workers.
 
-## Sponsors
+The changes include [Pest PR #1809](https://github.com/pestphp/pest/pull/1809), [Pest PR #1834](https://github.com/pestphp/pest/pull/1834), and the consumer-autoloader fix from Orbit's local fork.
 
-We cannot thank our sponsors enough for their incredible support in funding Pest's development. Their contributions have been instrumental in making Pest the best it can be. For those who are interested in becoming a sponsor, please visit Nuno Maduro's Sponsor page at **[github.com/sponsors/nunomaduro](https://github.com/sponsors/nunomaduro)**.
+## Package status
 
-- **[PhpStorm](https://jb.gg/nuno)**
-- **[CodeRabbit](https://coderabbit.link/nunomaduro)**
-- **[SerpApi](https://serpapi.com/?ref=nunomaduro)**
-- **[Bento](https://bentonow.com/?ref=nunomaduro)**
-- **[CMS Max](https://cmsmax.com/?ref=nunomaduro)**
-- **[Redberry](https://redberry.international/laravel-development/?utm_source=pest&utm_medium=banner&utm_campaign=pest_sponsorship)**
-- **[Typesense](https://typesense.org/?ref=nunomaduro)**
-- **[Pixel](https://wearepixel.com.au/?ref=nunomaduro)**
-- **[NativePHP](https://nativephp.com/?ref=nunomaduro)**
-- [TestMu AI](https://www.testmuai.com/?utm_medium=sponsor&utm_source=pest)
-- [Zapiet](https://zapiet.com/?ref=nunomaduro)
-- [LoadForge](https://loadforge.com/?ref=nunomaduro)
-- [Route4Me](https://route4me.com/?ref=nunomaduro)
-- [Nerdify](https://getnerdify.com/?ref=nunomaduro)
+The source is published on GitHub. Packagist registration and the first tagged release are pending.
 
-Pest is an open-sourced software licensed under the **[MIT license](https://opensource.org/licenses/MIT)**.
+After that release is available, install the fork in your Composer project:
+
+```bash
+composer require --dev nckrtl/pestphp-monorepo
+```
+
+If you already require `pestphp/pest` directly, remove that requirement when you add this package. The fork declares that it replaces Pest 5.1.4, so compatible Pest plugins can keep their existing dependency on `pestphp/pest`. Composer installs one implementation of Pest.
+
+Run commands from the Composer project directory, such as `apps/gateway`:
+
+```bash
+vendor/bin/pest
+vendor/bin/pest --tia
+vendor/bin/pest --tia --parallel
+```
+
+See the [Pest documentation](https://pestphp.com/docs) for testing APIs and command options. See [CONTRIBUTING.md](CONTRIBUTING.md) for local checks, upstream updates, and release preparation.
+
+## License
+
+Pest and this fork use the [MIT license](LICENSE.md). The original copyright and permission notice are retained.

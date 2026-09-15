@@ -1,75 +1,38 @@
-# CONTRIBUTING
+# Contributing
 
-Contributions are welcome, and are accepted via pull requests.
-Please review these guidelines before submitting any pull requests.
+This repository maintains the monorepo and consumer-autoloader changes on top of upstream Pest. Keep the upstream history and limit changes to the fork's purpose.
 
-## Process
+## Local checks
 
-1. Fork the project
-1. Create a new branch
-1. Code, test, commit and push
-1. Open a pull request detailing your changes. Make sure to follow the [template](.github/PULL_REQUEST_TEMPLATE.md)
+Use PHP 8.4 or later and Composer 2:
 
-## Guidelines
-
-* Please ensure the coding style running `composer lint`.
-* Send a coherent commit history, making sure each individual commit in your pull request is meaningful.
-* You may need to [rebase](https://git-scm.com/book/en/v2/Git-Branching-Rebasing) to avoid merge conflicts.
-* Please remember that we follow [SemVer](http://semver.org/).
-
-## Setup
-
-Clone your fork, then install the dev dependencies:
 ```bash
 composer install
-```
-## Lint
-
-Lint your code:
-```bash
-composer lint
-```
-## Tests
-
-Update the snapshots:
-```bash
-composer update:snapshots
-```
-Run all tests:
-```bash
-composer test
+composer test:affected
+composer check
 ```
 
-Check types:
-```bash
-composer test:type:check
-```
+`test:affected` runs the TIA unit tests and monorepo feature regressions. `check` validates the package, checks formatting and types, and runs the unit suite. The full upstream commands remain available, including `composer test:parallel` and `composer test:integration`.
 
-Unit tests:
-```bash
-composer test:unit
-```
+## Update upstream
 
-Integration tests:
-```bash
-composer test:integration
-```
-
-## Simplified setup using Docker
-
-If you have Docker installed, you can quickly get all dependencies for Pest in place using
-our Docker files. Assuming you have the repository cloned, you may run the following
-commands:
-
-1. `make build` to build the Docker image
-2. `make install` to install Composer dependencies
-3. `make test` to run the project tests and analysis tools
-
-If you want to check things work against a specific version of PHP, you may include
-the `PHP` build argument when building the image:
+The current base is Pest 5.1.4, commit `e68976ea9da26e57ce74bf6ac4d638ded9151771`.
 
 ```bash
-make build ARGS="--build-arg PHP=8.3"
+git remote add upstream https://github.com/pestphp/pest.git
+git fetch upstream --tags
+git switch -c update-pest-<version>
+git merge <upstream-tag>
 ```
 
-The default PHP version will always be the lowest version of PHP supported by Pest.
+If the `upstream` remote already exists, use it. Resolve conflicts while retaining the fork's package name, support links, replacement version, and tests. Update the exact `replace.pestphp/pest` version and the base recorded in this document and the README. Remove fork changes when the upstream release provides the same behavior.
+
+Run the local checks, parallel tests, integration tests, and a Composer consumer installation before merging an update. Verify that the consumer installs the fork without a second copy of Pest and discovers official Pest plugins. Exercise TIA in a monorepo subdirectory and a linked worktree.
+
+## Prepare a release
+
+Register `https://github.com/nckrtl/pestphp-monorepo` on Packagist before the first release. Releases use the fork's own version sequence, starting with `v1.0.0`; `replace.pestphp/pest` records the upstream version provided by that release.
+
+Publish a release tag only after the checks pass. Push only the fork's release tag, not the upstream tags retained in the local repository. Composer derives the package version from the release tag; do not add a `version` field to `composer.json`.
+
+This repository can be cloned inside another project's `packages/` directory for development. It remains an independent Git repository. Consumers install published releases through Composer; they do not need a path repository or a source-directory export process.
