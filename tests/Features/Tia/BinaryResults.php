@@ -2,7 +2,14 @@
 
 declare(strict_types=1);
 
+use Pest\Plugins\Tia\Recorder;
 use Tests\Fixtures\Tia\Project;
+
+beforeEach(function (): void {
+    if (! new Recorder()->driverAvailable()) {
+        $this->markTestSkipped('A coverage driver is required to record a fresh graph.');
+    }
+});
 
 afterEach(function (): void {
     Project::destroyAll();

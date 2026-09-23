@@ -1860,6 +1860,13 @@
   ✓ addOutput → it uses singular form for single test file
   ✓ addOutput → it returns original exit code when shard is not set
 
+   PASS  Tests\Unit\Plugins\Tia\BinaryJson
+  ✓ it keeps existing UTF-8 graph JSON unchanged
+  ✓ it preserves byte strings and distinct keys without changing ordinary metadata
+  ✓ it rejects malformed encoded strings
+  ✓ it does not disguise other serialization errors
+  ✓ it round trips binary graph identities, statuses, and messages
+
    PASS  Tests\Unit\Plugins\Tia\ChangedFiles
   ✓ repoPrefix() → it is empty at the repository root
   ✓ repoPrefix() → it is the slash-terminated subdirectory path for a monorepo project
@@ -2281,4 +2288,4 @@
   ✓ pass with dataset with ('my-datas-set-value')
   ✓ within describe → pass with dataset with ('my-datas-set-value')
 
-  Tests:    2 deprecated, 4 warnings, 5 incomplete, 2 notices, 40 todos, 35 skipped, 1620 passed (3507 assertions)
+  Tests:    2 deprecated, 4 warnings, 5 incomplete, 2 notices, 40 todos, 35 skipped, 1625 passed (3529 assertions)
