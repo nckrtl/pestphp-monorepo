@@ -18,6 +18,7 @@ use Pest\Exceptions\TiaRequiresRemote;
 use Pest\Panic;
 use Pest\Plugins\Concerns\HandleArguments;
 use Pest\Plugins\Tia\BaselineSync;
+use Pest\Plugins\Tia\BinaryJson;
 use Pest\Plugins\Tia\ChangedFiles;
 use Pest\Plugins\Tia\CiDefaultBranch;
 use Pest\Plugins\Tia\Contracts\State;
@@ -1407,13 +1408,13 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $results[$testId] = $this->replayedAsRecorded($testId, $result);
         }
 
-        $json = json_encode([
+        $json = BinaryJson::encode([
             'results' => $results,
             'replayed' => $this->replayedCount,
             'affected' => $this->affectedCount,
             'executed' => $this->executedCount,
             'truncated' => $this->stoppedEarly() || $collector->hasUnfinishedTest(),
-        ], JSON_UNESCAPED_SLASHES);
+        ]);
 
         if ($json === false) {
             return;
@@ -1443,7 +1444,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
                 continue;
             }
 
-            $decoded = json_decode($raw, true);
+            $decoded = BinaryJson::decode($raw);
 
             if (! is_array($decoded)) {
                 continue;

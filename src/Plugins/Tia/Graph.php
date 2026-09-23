@@ -1681,7 +1681,7 @@ final class Graph
      */
     public static function branchesIn(string $json): array
     {
-        $data = json_decode($json, true);
+        $data = BinaryJson::decode($json);
 
         if (! is_array($data) || ! is_array($data['baselines'] ?? null)) {
             return [];
@@ -1700,7 +1700,7 @@ final class Graph
 
     public static function decode(string $json, string $projectRoot): ?self
     {
-        $data = json_decode($json, true);
+        $data = BinaryJson::decode($json);
 
         if (! is_array($data) || ($data['schema'] ?? null) !== 1) {
             return null;
@@ -1918,7 +1918,7 @@ final class Graph
             'js_file_to_components' => $this->jsFileToComponents,
         ];
 
-        $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
+        $json = BinaryJson::encode($payload);
 
         return $json === false ? null : $json;
     }
