@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use Pest\Plugins\Tia\Baselines\GitHubRemote;
+use Pest\Plugins\Tia\Baselines\GitLabRemote;
 use Pest\Plugins\Tia\GitRepository;
 use Pest\Plugins\Tia\Storage;
+use Pest\Plugins\Tia\WatchPatterns;
 
 beforeEach(function (): void {
     $this->root = sys_get_temp_dir().'/pest-tia-git-repository-'.bin2hex(random_bytes(4));
@@ -72,6 +75,24 @@ describe('subdirectoryPrefix()', function (): void {
 
     it('is the slash-terminated project location inside the repository', function (): void {
         expect(GitRepository::subdirectoryPrefix($this->root.'/apps/api'))->toBe('apps/api/');
+    });
+});
+
+describe('baseline remotes in monorepo subdirectories', function (): void {
+    it('detects the ancestor origin for GitHub and GitLab', function (string $host): void {
+        file_put_contents($this->root.'/.git/config', "[remote \"origin\"]\n\turl = git@{$host}:acme/mono.git\n");
+
+        $remote = $host === 'github.com'
+            ? new GitHubRemote(new WatchPatterns)
+            : new GitLabRemote(new WatchPatterns);
+
+        expect($remote->detect($this->root.'/apps/api'))->toBe('acme/mono');
+    })->with(['github.com', 'gitlab.com']);
+
+    it('does not use an ancestor origin across a nested repository boundary', function (): void {
+        mkdir($this->root.'/apps/api/.git');
+
+        expect(new GitHubRemote(new WatchPatterns)->detect($this->root.'/apps/api'))->toBeNull();
     });
 });
 

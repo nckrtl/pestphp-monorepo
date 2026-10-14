@@ -2,7 +2,7 @@
 
 `nckrtl/pestphp-monorepo` is a fork of [Pest](https://pestphp.com) with test-impact analysis (TIA) support for Composer projects inside a Git monorepo and Git worktrees.
 
-This fork is based on Pest **5.1.4**. It keeps Pest's API, `Pest\` namespace, command, and plugin support. It is maintained independently by nckrtl and is not an official Pest release.
+This fork is based on Pest **5.3.2**. It keeps Pest's API, `Pest\` namespace, command, and plugin support. It is maintained independently by nckrtl and is not an official Pest release.
 
 ## Changes
 
@@ -23,7 +23,7 @@ Install the fork from [Packagist](https://packagist.org/packages/nckrtl/pestphp-
 composer require --dev nckrtl/pestphp-monorepo
 ```
 
-If you already require `pestphp/pest` directly, remove that requirement when you add this package. The fork declares that it replaces Pest 5.1.4, so compatible Pest plugins can keep their existing dependency on `pestphp/pest`. Composer installs one implementation of Pest.
+If you already require `pestphp/pest` directly, remove that requirement when you add this package. The fork declares that it replaces Pest 5.3.2, so compatible Pest plugins can keep their existing dependency on `pestphp/pest`. Composer installs one implementation of Pest.
 
 Run commands from the Composer project directory, such as `apps/gateway`:
 

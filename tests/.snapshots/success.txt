@@ -275,6 +275,7 @@
   ✓ dataset items can mix named and sequential styles with ('Taylor', 'taylor@laravel.com')
   ✓ dataset items can mix named and sequential styles with ('James', 'james@laravel.com') #1
   ✓ dataset items can mix named and sequential styles with ('James', 'james@laravel.com') #2
+  ✓ named parameters work with a single argument with ('Taylor')
 
    PASS  Tests\Features\Depends
   ✓ first
@@ -1838,6 +1839,9 @@
   ✓ buildFilterArgument → it returns empty string for empty test list
   ✓ buildFilterArgument → it generates compact filter for deeply nested namespaces
   ✓ buildFilterArgument → it handles mix of nested and flat namespaces
+  ✓ buildFilterArgument → it does not match a class outside of the shard when another class name is its prefix
+  ✓ buildFilterArgument → it still matches dataset variants after the class boundary
+  ✓ buildFilterArgument → it keeps a class matchable when another class nests below its namespace
   ✓ ensureFilterLengthIsSafe → it accepts filter within length limit
   ✓ ensureFilterLengthIsSafe → it throws exception when filter exceeds default limit
   ✓ ensureFilterLengthIsSafe → it respects custom limit from environment variable
@@ -1932,6 +1936,9 @@
   ✓ configPath() → it returns null for a .git FILE, matching the previous degradation
   ✓ subdirectoryPrefix() → it is empty at the repository root
   ✓ subdirectoryPrefix() → it is the slash-terminated project location inside the repository
+  ✓ baseline remotes in monorepo subdirectories → it detects the ancestor origin for GitHub and GitLab with ('github.com')
+  ✓ baseline remotes in monorepo subdirectories → it detects the ancestor origin for GitHub and GitLab with ('gitlab.com')
+  ✓ baseline remotes in monorepo subdirectories → it does not use an ancestor origin across a nested repository boundary
   ✓ storage keys → it gives same-basename sibling projects distinct stores
 
    PASS  Tests\Unit\Plugins\Tia\Graph
@@ -2246,6 +2253,9 @@
    PASS  Tests\Visual\Collision
   ✓ collision with ([''])
 
+   PASS  Tests\Visual\FailingBoot
+  ✓ a failure in the boot files renders only that failure
+
    PASS  Tests\Visual\Help
   ✓ visual snapshot of help command output
 
@@ -2292,4 +2302,4 @@
   ✓ pass with dataset with ('my-datas-set-value')
   ✓ within describe → pass with dataset with ('my-datas-set-value')
 
-  Tests:    2 deprecated, 4 warnings, 5 incomplete, 2 notices, 40 todos, 35 skipped, 1629 passed (3534 assertions)
+  Tests:    2 deprecated, 4 warnings, 5 incomplete, 2 notices, 40 todos, 35 skipped, 1637 passed (3547 assertions)
