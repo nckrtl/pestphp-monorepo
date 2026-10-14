@@ -605,7 +605,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $perTestUsesDatabase = $recorder->perTestUsesDatabase();
 
         if ($perTestUsesDatabase !== []) {
-            $perTestTables = $this->augmentDatabaseTestTables(
+            $perTestTables = $this->addMissingDatabaseTestTables(
                 $perTestTables,
                 $perTestUsesDatabase,
                 $projectRoot,
@@ -2209,8 +2209,17 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
      * @param  array<string, true>  $perTestUsesDatabase
      * @return array<string, array<int, string>>
      */
-    private function augmentDatabaseTestTables(array $perTestTables, array $perTestUsesDatabase, string $projectRoot): array
+    private function addMissingDatabaseTestTables(array $perTestTables, array $perTestUsesDatabase, string $projectRoot): array
     {
+        $testsWithoutQueries = array_filter(
+            array_keys($perTestUsesDatabase),
+            fn (string $testFile): bool => ($perTestTables[$testFile] ?? []) === [],
+        );
+
+        if ($testsWithoutQueries === []) {
+            return $perTestTables;
+        }
+
         $migrationDir = rtrim($projectRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'database'.DIRECTORY_SEPARATOR.'migrations';
 
         if (! is_dir($migrationDir)) {
@@ -2245,11 +2254,10 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return $perTestTables;
         }
 
-        foreach (array_keys($perTestUsesDatabase) as $testFile) {
-            $existing = $perTestTables[$testFile] ?? [];
-            $merged = array_fill_keys($existing, true) + $allTables;
-            $names = array_keys($merged);
-            sort($names);
+        $names = array_keys($allTables);
+        sort($names);
+
+        foreach ($testsWithoutQueries as $testFile) {
             $perTestTables[$testFile] = $names;
         }
 
@@ -2257,7 +2265,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
     }
 
     /**
-     * @return array<string, string> package name → version
+     * @return array<string, string>
      */
     private function lockVersions(string $json): array
     {

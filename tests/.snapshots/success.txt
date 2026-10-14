@@ -1938,6 +1938,9 @@
   ✓ shouldRerunStatus() → it re-runs failures and errors, replays successes
   ✓ applyMigrationChanges() → it selects tests whose recorded tables intersect the changed migration
   ✓ applyMigrationChanges() → it falls back to watch patterns when no table usage was recorded at all
+  ✓ applyMigrationChanges() → it selects direct migration consumers together with tests that query the changed table
+  ✓ applyMigrationChanges() → it selects direct consumers of unparseable migrations without table tracking
+  ✓ a provider change selects only tests that execute the provider after bootstrap
   ✓ rerun tracking → it reruns cached failures via their file
   ✓ rerun tracking → it flags cached failures whose file is unknown
   ✓ applyBladeStaticChanges() → it maps an anonymous index component to the views that render it
@@ -1982,6 +1985,7 @@
   ✓ it is independent of package ordering
 
    PASS  Tests\Unit\Plugins\Tia\Recorder
+  ✓ activateLinkTracking() → it ignores bootstrap links and retains links when the prepared event follows beforeEach
   ✓ activateLinkTracking() → it tracks tables without a coverage driver
   ✓ activateLinkTracking() → it tracks inertia components without a coverage driver
   ✓ activateLinkTracking() → it tracks linked sources across consecutive tests
@@ -2288,4 +2292,4 @@
   ✓ pass with dataset with ('my-datas-set-value')
   ✓ within describe → pass with dataset with ('my-datas-set-value')
 
-  Tests:    2 deprecated, 4 warnings, 5 incomplete, 2 notices, 40 todos, 35 skipped, 1625 passed (3529 assertions)
+  Tests:    2 deprecated, 4 warnings, 5 incomplete, 2 notices, 40 todos, 35 skipped, 1629 passed (3534 assertions)

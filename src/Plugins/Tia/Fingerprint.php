@@ -12,7 +12,7 @@ use Symfony\Component\Finder\Finder;
  */
 final readonly class Fingerprint
 {
-    private const int SCHEMA_VERSION = 18;
+    private const int SCHEMA_VERSION = 19;
 
     /**
      * @var array<int, class-string<Lockfile>>
