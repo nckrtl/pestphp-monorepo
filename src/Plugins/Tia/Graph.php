@@ -94,7 +94,7 @@ final class Graph
     }
 
     /**
-     * @param  array<int, string>  $changedFiles
+     * @param  array<int, string>  $changedFiles  Absolute or relative paths.
      * @return array<int, string>
      */
     public function affected(array $changedFiles): array
@@ -130,7 +130,7 @@ final class Graph
     }
 
     /**
-     * @param  array<int, string>  $testFiles
+     * @param  array<int, string>  $testFiles  Project-relative paths.
      * @return list<string>
      */
     public function testFilesOnDisk(array $testFiles): array
@@ -176,7 +176,7 @@ final class Graph
     /**
      * @param  list<string>  $migrationPaths
      * @param  array<string, true>  $affectedSet
-     * @return list<string>
+     * @return list<string> Unparseable migrations (caller treats as unknown-to-graph).
      */
     private function applyMigrationChanges(array $migrationPaths, array &$affectedSet): array
     {
@@ -394,7 +394,7 @@ final class Graph
     /**
      * @param  list<string>  $nonMigrationPaths
      * @param  array<string, true>  $affectedSet
-     * @return array<string, true>
+     * @return array<string, true> Unknown source dirs (sibling-heuristic).
      */
     private function applyPhpEdgeChanges(array $nonMigrationPaths, array &$affectedSet): array
     {

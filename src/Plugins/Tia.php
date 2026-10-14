@@ -2265,7 +2265,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
     }
 
     /**
-     * @return array<string, string>
+     * @return array<string, string> package name → version
      */
     private function lockVersions(string $json): array
     {
