@@ -87,3 +87,6 @@ jobs:
 
     - name: Binary TIA recording and replay
       run: php bin/pest tests/Features/Tia/BinaryResults.php --compact --fail-on-skipped
+
+    - name: Precise TIA selection
+      run: php bin/pest tests/Features/Tia/PreciseSelection.php --compact --fail-on-skipped

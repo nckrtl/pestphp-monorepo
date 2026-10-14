@@ -1,0 +1,90 @@
+<?php
+
+declare(strict_types=1);
+
+namespace TiaFixture;
+
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\TestCase;
+
+trait FixtureRefreshDatabase {}
+
+class FixtureContainer
+{
+    public static ?self $app = null;
+
+    private array $instances = [];
+
+    public static function getInstance(): self
+    {
+        return self::$app;
+    }
+
+    public function bound(string $name): bool
+    {
+        return isset($this->instances[$name]);
+    }
+
+    public function instance(string $name, mixed $value): void
+    {
+        $this->instances[$name] = $value;
+    }
+
+    public function make(string $name): mixed
+    {
+        return $this->instances[$name];
+    }
+}
+
+class_alias(FixtureContainer::class, 'Illuminate\Container\Container');
+class_alias(FixtureRefreshDatabase::class, 'Illuminate\Foundation\Testing\RefreshDatabase');
+
+final class Database
+{
+    private array $listeners = [];
+
+    public function listen(callable $listener): void
+    {
+        $this->listeners[] = $listener;
+    }
+
+    public function query(string $sql): void
+    {
+        foreach ($this->listeners as $listener) {
+            $listener((object) ['sql' => $sql]);
+        }
+    }
+}
+
+final class Schema
+{
+    public static function create(string $table): string
+    {
+        return $table;
+    }
+}
+
+class FixtureTestCase extends TestCase
+{
+    use RefreshDatabase;
+
+    protected \Closure $binding;
+
+    protected Database $database;
+
+    protected array $config;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $provider = new FixtureProvider;
+        $this->binding = $provider->register();
+        $provider->boot();
+        $this->config = require __DIR__.'/../config/fixture.php';
+        $this->database = new Database;
+
+        FixtureContainer::$app = new FixtureContainer;
+        FixtureContainer::$app->instance('db', $this->database);
+    }
+}

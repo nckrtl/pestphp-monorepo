@@ -63,6 +63,41 @@ describe('applyMigrationChanges()', function (): void {
 
         expect($affected)->toBe(['tests/Feature/OrderTest.php']);
     });
+
+    it('selects direct migration consumers together with tests that query the changed table', function (): void {
+        $graph = new Graph($this->projectRoot);
+        $migration = 'database/migrations/2024_01_01_000000_create_orders_table.php';
+        $graph->link('tests/Feature/MigrationTest.php', $migration);
+        $graph->replaceTestTables([
+            'tests/Feature/OrderTest.php' => ['orders'],
+            'tests/Feature/UserTest.php' => ['users'],
+        ]);
+
+        expect($graph->affected([$migration]))->toEqualCanonicalizing([
+            'tests/Feature/MigrationTest.php',
+            'tests/Feature/OrderTest.php',
+        ]);
+    });
+
+    it('selects direct consumers of unparseable migrations without table tracking', function (): void {
+        $migration = 'database/migrations/2024_01_01_000000_create_orders_table.php';
+        file_put_contents($this->projectRoot.'/'.$migration, '<?php runCustomMigration();');
+
+        $graph = new Graph($this->projectRoot);
+        $graph->link('tests/Feature/MigrationTest.php', $migration);
+        $graph->link('tests/Feature/UnrelatedTest.php', 'app/Models/User.php');
+
+        expect($graph->affected([$migration]))->toBe(['tests/Feature/MigrationTest.php']);
+    });
+});
+
+test('a provider change selects only tests that execute the provider after bootstrap', function (): void {
+    $graph = new Graph(sys_get_temp_dir());
+    $graph->link('tests/Feature/BindingTest.php', 'app/Providers/BindingProvider.php');
+    $graph->link('tests/Feature/OrderTest.php', 'app/Models/Order.php');
+    $graph->link('tests/Feature/UserTest.php', 'app/Models/User.php');
+
+    expect($graph->affected(['app/Providers/BindingProvider.php']))->toBe(['tests/Feature/BindingTest.php']);
 });
 
 describe('rerun tracking', function (): void {

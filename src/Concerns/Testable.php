@@ -225,11 +225,11 @@ trait Testable
         $recorder = Container::getInstance()->get(Recorder::class);
         assert($recorder instanceof Recorder);
 
+        parent::setUp();
+
         if ($recorder->isActive()) {
             $recorder->beginTest($this::class, $this->name(), self::$__filename);
         }
-
-        parent::setUp();
 
         Collectors::armAll($recorder);
 

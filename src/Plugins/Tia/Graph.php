@@ -180,6 +180,24 @@ final class Graph
      */
     private function applyMigrationChanges(array $migrationPaths, array &$affectedSet): array
     {
+        if ($migrationPaths === []) {
+            return [];
+        }
+
+        $changedIds = [];
+
+        foreach ($migrationPaths as $rel) {
+            if (isset($this->fileIds[$rel])) {
+                $changedIds[$this->fileIds[$rel]] = true;
+            }
+        }
+
+        foreach ($this->edges as $testFile => $ids) {
+            if (array_any($ids, fn (int $id): bool => isset($changedIds[$id]))) {
+                $affectedSet[$testFile] = true;
+            }
+        }
+
         if ($this->testTables === []) {
             return $migrationPaths;
         }
