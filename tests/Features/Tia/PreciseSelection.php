@@ -111,5 +111,5 @@ test('a graph recorded before bootstrap exclusion is rebuilt', function (): void
     $result = ($this->run)([]);
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($result->replayed())->toBe(0, $result->describe())
-        ->and($this->project->graph()['fingerprint']['structural']['schema'])->toBe(19);
+        ->and($this->project->graph()['fingerprint']['structural']['schema'])->toBe(20);
 })->skipOnWindows();

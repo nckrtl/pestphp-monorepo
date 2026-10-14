@@ -8,7 +8,7 @@ afterEach(function (): void {
     Project::destroyAll();
 });
 
-test('a detached HEAD does not purge the graph on structural drift', function (array $arguments): void {
+test('a detached HEAD can rebuild the graph on structural drift', function (array $arguments): void {
     $project = Project::make('master');
     $project->seed('master');
 
@@ -25,10 +25,10 @@ test('a detached HEAD does not purge the graph on structural drift', function (a
 
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($project->graphExists())->toBeTrue('the detached run deleted graph.json')
-        ->and($delta->isHardSuppressed())->toBeTrue($delta->summary());
+        ->and($delta->structureMoved())->toBeTrue($delta->summary());
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
-test('a detached HEAD does not purge the graph with --fresh either', function (array $arguments): void {
+test('a detached HEAD can rebuild the graph with --fresh', function (array $arguments): void {
     $project = Project::make('master');
     $project->seed('master');
 
@@ -39,10 +39,10 @@ test('a detached HEAD does not purge the graph with --fresh either', function (a
 
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($project->graphExists())->toBeTrue('the detached --fresh run deleted graph.json')
-        ->and($delta->isHardSuppressed())->toBeTrue($delta->summary());
+        ->and($delta->structureMoved())->toBeTrue($delta->summary());
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
-test('a detached HEAD leaves an unreadable graph for a checkout that can rebuild it', function (): void {
+test('a detached HEAD can replace an unreadable graph for a checkout that can rebuild it', function (): void {
     $project = Project::make('master');
     $project->seed('master');
 
@@ -54,7 +54,7 @@ test('a detached HEAD leaves an unreadable graph for a checkout that can rebuild
 
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($result->tally())->toContain(Project::TOTAL_TESTS.' passed')
-        ->and(file_get_contents($project->graphDir().'/graph.json'))->toBe('{not json');
+        ->and(file_get_contents($project->graphDir().'/graph.json'))->not->toBe('{not json');
 })->skipOnWindows();
 
 test('a cached failure whose test file was deleted stops widening later runs', function (array $arguments): void {
@@ -369,7 +369,11 @@ test('a full suite run without a coverage driver clears the tree it could not re
         return $graph;
     });
 
-    $environment = ['XDEBUG_MODE' => 'off'];
+    $project->write('php-ini/99-pcov.ini', "pcov.enabled=0\n");
+    $environment = [
+        'XDEBUG_MODE' => 'off',
+        'PHP_INI_SCAN_DIR' => (getenv('PHP_INI_SCAN_DIR') ?: PHP_CONFIG_FILE_SCAN_DIR).PATH_SEPARATOR.$project->path('php-ini'),
+    ];
 
     $first = $project->pestWithEnvironment($project->path(), $environment, '--tia', ...$arguments);
 

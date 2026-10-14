@@ -42,7 +42,7 @@ file_put_contents($root.'/apps/api/tests/ConsumerTest.php', <<<'TEST'
 
 it('loads the fork and official plugins', function () {
     expect(Composer\InstalledVersions::isInstalled('nckrtl/pestphp-monorepo'))->toBeTrue()
-        ->and(Composer\InstalledVersions::getVersionRanges('pestphp/pest'))->toContain('5.1.4')
+        ->and(Composer\InstalledVersions::getVersionRanges('pestphp/pest'))->toContain('5.3.2')
         ->and(class_exists(Pest\Plugins\Tia\GitRepository::class))->toBeTrue()
         ->and(function_exists('Pest\Laravel\get'))->toBeTrue()
         ->and(Pest\Support\Backtrace::file())->toBe(__FILE__);

@@ -17,7 +17,7 @@ composer test:consumer
 
 ## Update upstream
 
-The current base is Pest 5.1.4, commit `e68976ea9da26e57ce74bf6ac4d638ded9151771`.
+The current base is Pest 5.3.2, commit `73fe04f8c30a734fe2e269a71d4628cdf7131062`.
 
 ```bash
 git remote add upstream https://github.com/pestphp/pest.git
