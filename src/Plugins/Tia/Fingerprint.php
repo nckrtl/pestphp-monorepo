@@ -15,7 +15,7 @@ use PHPUnit\TextUI\CliArguments\XmlConfigurationFileFinder;
  */
 final readonly class Fingerprint
 {
-    private const int SCHEMA_VERSION = 22;
+    private const int SCHEMA_VERSION = 23;
 
     private const array JS_CONFIG_NAMES = ['tsconfig.json', 'tsconfig.app.json', 'jsconfig.json'];
 
@@ -39,11 +39,13 @@ final readonly class Fingerprint
     {
         $structural = ['schema' => self::SCHEMA_VERSION];
 
-        $inputs = self::inputs($projectRoot, $arguments);
-        $tracked = self::trackedFiles($projectRoot, array_merge(...array_values(array_diff_key($inputs, ['phpunit_config' => true]))));
+        $entries = self::indexEntries($projectRoot);
+        $submodules = self::gitlinkEntries($entries ?? '');
+        $inputs = self::inputs($projectRoot, $arguments, array_keys($submodules));
+        $tracked = self::trackedFiles($entries);
         foreach ($inputs as $group => $paths) {
             if ($group === 'submodules') {
-                $structural[$group] = self::gitlinks($projectRoot);
+                $structural[$group] = $submodules === [] ? null : hash('xxh128', serialize($submodules));
 
                 continue;
             }
@@ -187,57 +189,64 @@ final readonly class Fingerprint
      */
     public static function touchesInputs(array $paths, string $projectRoot, array $arguments = [], ?string $base = null): bool
     {
-        return array_intersect($paths, array_merge(...array_values(self::inputs($projectRoot, $arguments, $base, forSelection: true)))) !== [];
+        $entries = self::indexEntries($projectRoot) ?? '';
+        if ($base !== null) {
+            $entries .= new Git($projectRoot)->raw(['ls-tree', '-r', '-z', $base, '--', '.']) ?? '';
+        }
+
+        return array_intersect($paths, array_merge(...array_values(self::inputs($projectRoot, $arguments, array_keys(self::gitlinkEntries($entries)), forSelection: true)))) !== [];
     }
 
     /**
      * @param  array<int, string>  $arguments
+     * @param  list<string>  $submodules
      * @return array<string, list<string>>
      */
-    private static function inputs(string $projectRoot, array $arguments, ?string $base = null, bool $forSelection = false): array
+    private static function inputs(string $projectRoot, array $arguments, array $submodules, bool $forSelection = false): array
     {
         $configurationArguments = ['--configuration', $projectRoot];
-        $discover = true;
         foreach ($arguments as $index => $argument) {
             if (in_array($argument, ['-c', '--configuration'], true)) {
                 $configurationArguments = [$argument, $arguments[$index + 1] ?? ''];
-                $discover = false;
             } elseif ($argument === '--no-configuration' || str_starts_with($argument, '--configuration=') || (str_starts_with($argument, '-c') && strlen($argument) > 2)) {
                 $configurationArguments = [$argument];
-                $discover = false;
             }
         }
         $configuration = new Builder(EventFacade::emitter())->fromParameters($configurationArguments);
+        $target = $configuration->hasConfigurationFile() ? $configuration->configurationFile() : null;
+        $target = $target === null ? null : (realpath($target) ?: $target);
         $path = new XmlConfigurationFileFinder()->find($configuration);
-        if (is_string($path)) {
+        $configurationPaths = $forSelection && $target !== null && is_dir($target)
+            ? array_map(static fn (string $name): string => rtrim($target, '/').'/'.$name, ['phpunit.xml', 'phpunit.dist.xml', 'phpunit.xml.dist'])
+            : (is_string($path) ? [$path] : []);
+        $configurationPaths = array_map(static function (string $path) use ($projectRoot): string {
             $path = realpath($path) ?: $path;
             $prefix = rtrim($projectRoot, '/').'/';
-            if (str_starts_with($path, $prefix)) {
-                $path = substr($path, strlen($prefix));
-            }
-        }
+
+            return str_starts_with($path, $prefix) ? substr($path, strlen($prefix)) : $path;
+        }, $configurationPaths);
 
         return [
             'composer_lock' => ['composer.lock'],
             'composer_json' => ['composer.json'],
-            'phpunit_config' => $forSelection && $discover
-                ? ['phpunit.xml', 'phpunit.dist.xml', 'phpunit.xml.dist']
-                : (is_string($path) ? [$path] : []),
+            'phpunit_config' => $configurationPaths,
             'vite_config' => JsModuleGraph::VITE_CONFIG_NAMES,
             'package_lock' => self::PACKAGE_LOCK_NAMES,
             'js_config' => self::JS_CONFIG_NAMES,
-            'submodules' => array_keys(self::gitlinkEntries($projectRoot, $base)),
+            'submodules' => $submodules,
         ];
     }
 
-    /** @return array<string, string> */
-    private static function gitlinkEntries(string $projectRoot, ?string $base = null): array
+    private static function indexEntries(string $projectRoot): ?string
     {
-        $git = new Git($projectRoot);
-        $entries = $git->raw(['ls-files', '--stage', '-z']) ?? '';
-        if ($base !== null) {
-            $entries .= $git->raw(['ls-tree', '-r', '-z', $base, '--', '.']) ?? '';
-        }
+        return GitRepository::locate($projectRoot) === null
+            ? null
+            : new Git($projectRoot)->raw(['ls-files', '--stage', '-z']);
+    }
+
+    /** @return array<string, string> */
+    private static function gitlinkEntries(string $entries): array
+    {
         $links = [];
         foreach (explode("\0", $entries) as $entry) {
             if (preg_match('/^160000 (?:commit )?([a-f0-9]+)(?: [0-3])?\t(.+)$/s', $entry, $matches) === 1) {
@@ -247,13 +256,6 @@ final readonly class Fingerprint
         ksort($links);
 
         return $links;
-    }
-
-    private static function gitlinks(string $projectRoot): ?string
-    {
-        $entries = self::gitlinkEntries($projectRoot);
-
-        return $entries === [] ? null : hash('xxh128', serialize($entries));
     }
 
     private static function lockfileHash(string $path, string $name): ?string
@@ -287,23 +289,22 @@ final readonly class Fingerprint
         return hash('xxh128', $contents);
     }
 
-    /**
-     * @param  list<string>  $paths
-     * @return array<string, true>|null
-     */
-    private static function trackedFiles(string $projectRoot, array $paths): ?array
+    /** @return array<string, true>|null */
+    private static function trackedFiles(?string $entries): ?array
     {
-        if (GitRepository::locate($projectRoot) === null) {
+        if ($entries === null) {
             return null;
         }
 
-        $paths = array_values(array_filter($paths, static fn (string $path): bool => is_file(str_starts_with($path, '/') ? $path : $projectRoot.'/'.$path)));
-        if ($paths === []) {
-            return [];
+        $files = [];
+        foreach (explode("\0", $entries) as $entry) {
+            $separator = strpos($entry, "\t");
+            if ($separator !== false) {
+                $files[substr($entry, $separator + 1)] = true;
+            }
         }
-        $files = new Git($projectRoot)->raw(['ls-files', '-z', '--', ...$paths]) ?? '';
 
-        return array_fill_keys(array_filter(explode("\0", $files)), true);
+        return $files;
     }
 
     private static function hashIfExists(string $path): ?string

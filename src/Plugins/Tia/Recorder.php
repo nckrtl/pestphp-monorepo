@@ -269,7 +269,17 @@ final class Recorder
         $paths = TestPaths::fromProjectRoot($suite->rootPath);
         $testFiles = array_fill_keys($suite->tests->getFilenames(), true);
         $configuration = Registry::get();
-        $bootstrap = $configuration->hasBootstrap() ? realpath($configuration->bootstrap()) : false;
+        $bootstrapPaths = array_values($configuration->bootstrapForTestSuite());
+        if ($configuration->hasBootstrap()) {
+            $bootstrapPaths[] = $configuration->bootstrap();
+        }
+        $bootstraps = [];
+        foreach ($bootstrapPaths as $path) {
+            $path = realpath($path);
+            if ($path !== false) {
+                $bootstraps[$path] = true;
+            }
+        }
         $files = [];
         foreach (get_included_files() as $file) {
             if (! str_starts_with($file, $root) || isset($testFiles[$file])) {
@@ -277,7 +287,7 @@ final class Recorder
             }
             $relative = substr($file, strlen($root));
             if (str_starts_with($file, $testRoot) || $paths->contains($relative)
-                || ($file === $bootstrap && ! str_starts_with($relative, 'vendor/'))) {
+                || (isset($bootstraps[$file]) && ! str_starts_with($relative, 'vendor/'))) {
                 $files[] = $relative;
             }
         }

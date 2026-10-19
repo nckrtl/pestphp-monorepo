@@ -98,12 +98,12 @@ test('a migration change also selects its direct coverage consumer', function (a
         ->and($result->affected())->toBe(1, $result->describe());
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
-test('a graph recorded before configured project bootstrap tracking is rebuilt', function (): void {
+test('a graph recorded before per-suite bootstrap tracking is rebuilt', function (): void {
     $recording = ($this->run)([]);
     expect($recording->exitCode)->toBe(0, $recording->describe());
 
     $this->project->mutateGraph(function (array $graph): array {
-        $graph['fingerprint']['structural']['schema'] = 21;
+        $graph['fingerprint']['structural']['schema'] = 22;
 
         return $graph;
     });
@@ -111,5 +111,5 @@ test('a graph recorded before configured project bootstrap tracking is rebuilt',
     $result = ($this->run)([]);
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($result->replayed())->toBe(0, $result->describe())
-        ->and($this->project->graph()['fingerprint']['structural']['schema'])->toBe(22);
+        ->and($this->project->graph()['fingerprint']['structural']['schema'])->toBe(23);
 })->skipOnWindows();

@@ -2239,11 +2239,8 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             'phpunit_config' => 'PHPUnit config',
             'submodules' => 'Submodule pointer',
             'vite_config' => 'vite.config',
-            'package_json' => 'package.json',
             'package_lock' => 'Node lockfile',
             'js_config' => 'JS/TS config',
-            'pest_factory' => 'Pest internals',
-            'pest_method_factory' => 'Pest internals',
         ];
 
         $seen = [];

@@ -506,16 +506,21 @@ test('an ignored active config is still fingerprinted', function (): void {
         ->and($result->tally())->toContain('6 passed');
 })->skipOnWindows();
 
-test('deleting a discovered config widens selection after a warm run', function (array $arguments): void {
+test('deleting a discovered config widens selection after a warm run', function (array $arguments, bool $configurationDirectory): void {
     $xml = file_get_contents($this->project->path('phpunit.xml'));
-    $this->project->write('phpunit.xml', str_replace('</phpunit>', '<php><env name="FIXTURE_CONFIG" value="original"/></php></phpunit>', $xml));
-    $this->project->write('phpunit.xml.dist', str_replace('</phpunit>', '<php><env name="FIXTURE_CONFIG" value="fallback"/></php></phpunit>', $xml));
+    $directory = $configurationDirectory ? 'conf/' : '';
+    if ($configurationDirectory) {
+        $xml = str_replace(['bootstrap="vendor/', './tests', './app'], ['bootstrap="../vendor/', '../tests', '../app'], $xml);
+        $arguments = [...$arguments, '-c', 'conf'];
+    }
+    $this->project->write($directory.'phpunit.xml', str_replace('</phpunit>', '<php><env name="FIXTURE_CONFIG" value="original"/></php></phpunit>', $xml));
+    $this->project->write($directory.'phpunit.xml.dist', str_replace('</phpunit>', '<php><env name="FIXTURE_CONFIG" value="fallback"/></php></phpunit>', $xml));
     $this->project->write('tests/Unit/ConfigTest.php', "<?php test('config is correct', fn () => expect(getenv('FIXTURE_CONFIG'))->toBe('original'));\n");
     $this->project->git()->commit('Track both discovered configs');
     $start = $this->project->git()->sha();
     $record = ($this->run)(['--fresh', ...$arguments]);
     expect($record->exitCode)->toBe(0, $record->describe());
-    unlink($this->project->path('phpunit.xml'));
+    unlink($this->project->path($directory.'phpunit.xml'));
     $this->project->git()->commit('Remove higher priority config');
     $warm = ($this->run)($arguments);
     expect($warm->exitCode)->toBe(1, $warm->describe());
@@ -526,11 +531,14 @@ test('deleting a discovered config widens selection after a warm run', function 
     expect($result->exitCode)->toBe(1, $result->describe())
         ->and($result->tally())->toContain('1 failed', '6 passed')
         ->and($full->exitCode)->toBe(1, $full->describe());
-})->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
+})->with(Project::SEQUENTIAL_AND_PARALLEL)->with(['project root' => false, 'configuration directory' => true])->skipOnWindows();
 
-test('a configured project bootstrap outside test paths widens selection', function (array $arguments): void {
+test('a configured project bootstrap outside test paths widens selection', function (array $arguments, string $kind): void {
     $xml = file_get_contents($this->project->path('phpunit.xml'));
-    $this->project->write('phpunit.xml', str_replace('bootstrap="vendor/autoload.php"', 'bootstrap="bootstrap/testing.php"', $xml));
+    $xml = $kind === 'main'
+        ? str_replace('bootstrap="vendor/autoload.php"', 'bootstrap="bootstrap/testing.php"', $xml)
+        : str_replace('<testsuite name="default">', '<testsuite name="default" bootstrap="bootstrap/testing.php">', $xml);
+    $this->project->write('phpunit.xml', $xml);
     $this->project->write('bootstrap/testing.php', "<?php require __DIR__.'/../vendor/autoload.php'; define('FIXTURE_INPUT', true);\n");
     $this->project->write('tests/Unit/InputTest.php', "<?php test('bootstrap is correct', fn () => expect(FIXTURE_INPUT)->toBeTrue());\n");
     $this->project->git()->commit('Configure project bootstrap');
@@ -546,4 +554,8 @@ test('a configured project bootstrap outside test paths widens selection', funct
         ->and($result->tally())->toContain('1 failed', '6 passed')
         ->and($this->project->graph()['pre_test_files'])->toContain('bootstrap/testing.php')
         ->and($full->exitCode)->toBe(1, $full->describe());
-})->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
+})->with([
+    'main sequential' => [[], 'main'],
+    'main parallel' => [Project::SEQUENTIAL_AND_PARALLEL['parallel'][0], 'main'],
+    'suite' => [[], 'suite'],
+])->skipOnWindows();
