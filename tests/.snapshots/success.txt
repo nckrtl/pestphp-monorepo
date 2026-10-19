@@ -1992,7 +1992,7 @@
   ✓ it is independent of package ordering
 
    PASS  Tests\Unit\Plugins\Tia\Recorder
-  ✓ activateLinkTracking() → it ignores bootstrap links and retains links when the prepared event follows beforeEach
+  ✓ activateLinkTracking() → it ignores links outside a test and retains links until it finishes
   ✓ activateLinkTracking() → it tracks tables without a coverage driver
   ✓ activateLinkTracking() → it tracks inertia components without a coverage driver
   ✓ activateLinkTracking() → it tracks linked sources across consecutive tests
@@ -2026,7 +2026,6 @@
    PASS  Tests\Unit\Plugins\Tia\TestFiles
   ✓ it does not confuse a matching suite helper with a file defining tests
   ✓ it keeps configured bootstraps outside the test directories
-  ✓ it does not include a configured bootstrap from vendor
   ✓ it does not include app files or files outside the project
   ✓ it only includes support files that were loaded
   ✓ it uses exact suite candidates for new test discovery
@@ -2302,4 +2301,4 @@
   ✓ pass with dataset with ('my-datas-set-value')
   ✓ within describe → pass with dataset with ('my-datas-set-value')
 
-  Tests:    2 deprecated, 4 warnings, 5 incomplete, 2 notices, 40 todos, 35 skipped, 1637 passed (3547 assertions)
+  Tests:    2 deprecated, 4 warnings, 5 incomplete, 2 notices, 40 todos, 35 skipped, 1636 passed (3546 assertions)

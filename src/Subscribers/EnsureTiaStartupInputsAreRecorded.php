@@ -16,6 +16,7 @@ final readonly class EnsureTiaStartupInputsAreRecorded implements ExecutionFinis
     public function notify(ExecutionFinished $event): void
     {
         if ($this->recorder->isActive()) {
+            $this->recorder->endTest();
             $this->recorder->recordPreTestFiles();
         }
     }

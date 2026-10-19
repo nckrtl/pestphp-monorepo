@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Pest\Plugins\Tia\Recorder;
 
 describe('activateLinkTracking()', function (): void {
-    it('ignores bootstrap links and retains links when the prepared event follows beforeEach', function (): void {
+    it('ignores links outside a test and retains links until it finishes', function (): void {
         $recorder = new Recorder;
         $recorder->activateLinkTracking();
 

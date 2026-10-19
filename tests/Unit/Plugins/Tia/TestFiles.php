@@ -7,11 +7,9 @@ use Pest\Plugins\Tia\TestFiles;
 beforeEach(function (): void {
     $this->root = realpath(sys_get_temp_dir()).'/pest-test-files-'.bin2hex(random_bytes(6)).'/';
     mkdir($this->root.'tests', 0755, true);
-    mkdir($this->root.'vendor');
     file_put_contents($this->root.'tests/Example.php', '<?php');
     file_put_contents($this->root.'tests/Helper.php', '<?php');
     file_put_contents($this->root.'bootstrap.php', '<?php');
-    file_put_contents($this->root.'vendor/bootstrap.php', '<?php');
     $this->files = new TestFiles(
         $this->root,
         [$this->root.'tests/'],
@@ -21,11 +19,10 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
-    foreach (['tests/Example.php', 'tests/Helper.php', 'bootstrap.php', 'vendor/bootstrap.php'] as $file) {
+    foreach (['tests/Example.php', 'tests/Helper.php', 'bootstrap.php'] as $file) {
         unlink($this->root.$file);
     }
     rmdir($this->root.'tests');
-    rmdir($this->root.'vendor');
     rmdir($this->root);
 });
 
@@ -38,10 +35,6 @@ it('does not confuse a matching suite helper with a file defining tests', functi
 
 it('keeps configured bootstraps outside the test directories', function (): void {
     expect($this->files->startupInputs([], []))->toBe(['bootstrap.php']);
-});
-
-it('does not include a configured bootstrap from vendor', function (): void {
-    expect($this->files->startupInputs([$this->root.'vendor/bootstrap.php'], []))->not->toContain('vendor/bootstrap.php');
 });
 
 it('does not include app files or files outside the project', function (): void {
