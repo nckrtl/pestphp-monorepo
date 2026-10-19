@@ -458,6 +458,13 @@ final class Graph
     private function applyTestFileChanges(array $nonMigrationPaths, array &$affectedSet): void
     {
         $testPaths = TestPaths::fromProjectRoot($this->projectRoot);
+        $bootstrap = $this->relative(TestSuite::getInstance()->testPath.'/Pest.php');
+
+        if (in_array($bootstrap, $nonMigrationPaths, true)) {
+            foreach (array_keys($this->edges) as $testFile) {
+                $affectedSet[$testFile] = true;
+            }
+        }
 
         foreach ($nonMigrationPaths as $rel) {
             if (isset($affectedSet[$rel])) {

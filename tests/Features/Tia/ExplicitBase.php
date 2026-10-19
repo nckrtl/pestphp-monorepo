@@ -268,6 +268,24 @@ test('a bootstrap change widens explicit selection', function (string $base): vo
         ->and($result->replayed())->toBe(0, $result->describe());
 })->with(['graph', 'commit'])->skipOnWindows();
 
+test('a bootstrap change widens partial recorded edges', function (string $base): void {
+    $contents = file_get_contents($this->project->path('tests/Pest.php'));
+    $this->project->write('tests/Pest.php', $contents."\nfunction fixtureAssert(): void { expect(true)->toBeTrue(); }\n");
+    $test = file_get_contents($this->project->path('tests/Unit/CalculatorTest.php'));
+    $this->project->write('tests/Unit/CalculatorTest.php', str_replace('    expect(', "    fixtureAssert();\n    expect(", $test));
+    $this->project->git()->commit('Use a bootstrap helper in one test file');
+    $record = ($this->run)(['--fresh']);
+    expect($record->exitCode)->toBe(0, $record->describe());
+    $start = $this->project->git()->sha();
+    $this->project->write('tests/Pest.php', $contents."\nfunction fixtureAssert(): void { expect(1)->toBe(1); }\n");
+
+    $result = ($this->run)(['--tia-base='.($base === 'graph' ? 'graph' : $start)]);
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->tally())->toContain('6 passed')
+        ->and($result->replayed())->toBe(0, $result->describe());
+})->with(['graph', 'commit'])->skipOnWindows();
+
 test('an explicit commit follows renamed or deleted dependencies', function (bool $rename): void {
     $this->project->write('resources/views/greeting.blade.php', '<p>Hello</p>');
     $this->project->git()->commit('Add view');
