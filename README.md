@@ -33,6 +33,17 @@ vendor/bin/pest --tia
 vendor/bin/pest --tia --parallel
 ```
 
+Use an explicit test base for a gate:
+
+```bash
+vendor/bin/pest --tia --tia-base=graph
+vendor/bin/pest --tia --tia-base=COMMIT
+```
+
+`graph` selects changes since the dependency graph’s default-branch commit. `COMMIT` selects changes since that commit and requires graph edges that are current at that commit. Both forms include uncommitted and untracked files. They select test files from the graph’s edges and run those tests without replaying stored results or using branch baselines or last-run content snapshots. An empty delta runs no tests. A missing or incompatible graph records the full suite. The `graph` form also records the full suite if the graph has no reachable default-branch commit.
+
+`--tia-base` enables TIA by itself and cannot be combined with a partial test selection, such as a test path or `--filter`. Coverage reports contain only the selected tests.
+
 See the [Pest documentation](https://pestphp.com/docs) for testing APIs and command options. See [CONTRIBUTING.md](CONTRIBUTING.md) for local checks, upstream updates, and release preparation.
 
 ## License
