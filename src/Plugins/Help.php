@@ -102,7 +102,7 @@ final readonly class Help implements HandlesArguments
 
         $content['Tia'] = [
             [
-                'arg' => '--tia --tia-base=graph|COMMIT',
+                'arg' => '--tia-base=graph|COMMIT',
                 'desc' => 'Select tests from graph edges and changed files without replaying stored results',
             ],
             [

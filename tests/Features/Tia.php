@@ -24,7 +24,7 @@ it('does not run user hooks when replaying cached skipped and incomplete results
         $id = fn (string $description): string => 'P\Tests\Fixtures\Suites\TiaReplayHooks::'.Str::evaluable($description);
 
         $graph = new Graph($projectRoot);
-        $graph->setFingerprint(Fingerprint::compute($projectRoot));
+        $graph->setFingerprint(Fingerprint::compute($projectRoot, ['--configuration', 'tests/Fixtures/Suites/TiaReplayHooks.xml']));
         $graph->setRecordedAtSha($branch, $sha);
         $graph->setLastRunTree($branch, $changedFiles->snapshotTree($changedFiles->since($sha) ?? []));
         $graph->markKnownTestFiles([$fixture]);

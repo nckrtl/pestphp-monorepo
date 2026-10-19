@@ -182,7 +182,7 @@ final readonly class ChangedFiles
         }
 
         $result = $this->git->result(
-            ['check-ignore', '--no-index', '-z', '--stdin'],
+            ['check-ignore', '-z', '--stdin'],
             implode("\x00", array_keys($candidates)),
         );
 

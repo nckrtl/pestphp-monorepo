@@ -33,6 +33,7 @@ use Pest\Plugins\Tia\Storage;
 use Pest\Plugins\Tia\TableExtractor;
 use Pest\Plugins\Tia\WatchPatterns;
 use Pest\Support\Container;
+use Pest\Support\Git;
 use Pest\Support\View;
 use Pest\TestCaseFilters\TiaTestCaseFilter;
 use Pest\TestSuite;
@@ -207,6 +208,9 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
     /** @var array<int, string> */
     private array $originalArguments = [];
+
+    /** @var array<int, string> */
+    private array $fingerprintArguments = [];
 
     private ?string $driftLabel = null;
 
@@ -464,6 +468,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
      */
     public function handleArguments(array $arguments): array
     {
+        $this->fingerprintArguments = $arguments;
         if ($this->hasArgument(self::BASELINE_PATH_OPTION, $arguments)) {
             $this->output->writeln(Storage::tempDir(TestSuite::getInstance()->rootPath));
 
@@ -484,6 +489,9 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $watchPatterns = Container::getInstance()->get(WatchPatterns::class);
         self::applyWatchPatternMarks($arguments, $watchPatterns);
         $disabled = $this->hasArgument(self::NO_OPTION, $arguments);
+        if ($disabled && $this->testBase !== null) {
+            throw new InvalidOption('--no-tia cannot be combined with --tia-base.');
+        }
         $cliEnabled = $this->testBase !== null || $this->hasArgument(self::OPTION, $arguments) || self::envFlagEnabled(self::ENV_TIA);
         $alwaysEnabled = $watchPatterns->isEnabled()
             && (! $watchPatterns->isLocally() || Environment::name() === Environment::LOCAL);
@@ -634,7 +642,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $changedFiles = new ChangedFiles($projectRoot);
         $currentSha = $changedFiles->currentSha();
 
-        $currentFingerprint = Fingerprint::compute($projectRoot);
+        $currentFingerprint = Fingerprint::compute($projectRoot, $this->fingerprintArguments);
 
         if ($this->structuralFingerprintShifted($currentFingerprint)) {
             $this->renderBadge('WARN', 'Project files changed during the run — discarding recorded edges.');
@@ -652,6 +660,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $this->branch,
             $changedFiles->snapshotTree($changedFiles->since($currentSha) ?? []),
         );
+        $graph->addPreTestFiles($recorder->preTestFiles());
         $graph->replaceEdges($perTest, keepExisting: $this->piggybackCoverage);
         $graph->replaceTestTables($perTestTables);
         $graph->replaceTestInertiaComponents($perTestInertia);
@@ -720,7 +729,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $changedFiles = new ChangedFiles($projectRoot);
         $currentSha = $changedFiles->currentSha();
 
-        $currentFingerprint = Fingerprint::compute($projectRoot);
+        $currentFingerprint = Fingerprint::compute($projectRoot, $this->fingerprintArguments);
 
         if ($this->structuralFingerprintShifted($currentFingerprint)) {
             $this->renderBadge('WARN', 'Project files changed during the run — discarding recorded edges.');
@@ -741,7 +750,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $changedFiles->snapshotTree($changedFiles->since($currentSha) ?? []),
         );
 
-        [$finalised, $finalisedTables, $finalisedInertia] = $this->consumePartials($partialKeys);
+        [$finalised, $finalisedTables, $finalisedInertia, $preTestFiles] = $this->consumePartials($partialKeys);
 
         if ($finalised === []) {
             if ($this->replayRan) {
@@ -756,6 +765,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return $exitCode;
         }
 
+        $graph->addPreTestFiles($preTestFiles);
         $graph->replaceEdges($finalised, keepExisting: $this->piggybackCoverage);
         $graph->replaceTestTables($finalisedTables);
         $graph->replaceTestInertiaComponents($finalisedInertia);
@@ -854,14 +864,18 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
                 : new TiaRequiresRemote);
         }
 
-        if ($this->testBase !== null && $this->testBase !== 'graph' && new ChangedFiles($projectRoot)->since($this->testBase) === null) {
-            throw new InvalidOption('--tia-base must name a reachable commit.');
+        if ($this->testBase !== null && $this->testBase !== 'graph') {
+            $commit = new Git($projectRoot)->output(['rev-parse', '--verify', '--end-of-options', $this->testBase.'^{commit}']);
+            if ($commit === null || new ChangedFiles($projectRoot)->since($commit) === null) {
+                throw new InvalidOption('--tia-base must name a reachable commit.');
+            }
+            $this->testBase = $commit;
         }
         if ($this->testBase !== null) {
             Parallel::setGlobal(self::BASE_GLOBAL, $this->testBase);
         }
 
-        $fingerprint = Fingerprint::compute($projectRoot);
+        $fingerprint = Fingerprint::compute($projectRoot, $this->fingerprintArguments);
         $this->startFingerprint = $fingerprint;
 
         if ($forceRebuild && $this->canRebuildGraph()) {
@@ -1083,6 +1097,13 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
         if ($this->testBase === 'graph' && ($branchSha === null || $changed === null)) {
             $this->renderBadge('WARN', 'Graph has no reachable default-branch commit — recording the full suite.');
+
+            return $this->enterRecordMode($arguments);
+        }
+
+        if ($this->testBase !== null && $this->testBase !== 'graph'
+            && Fingerprint::touchesInputs($changed ?? [], $projectRoot, $this->fingerprintArguments, $this->testBase)) {
+            $this->renderBadge('WARN', 'Commit delta changes a fingerprint input — recording the full suite.');
 
             return $this->enterRecordMode($arguments);
         }
@@ -1399,6 +1420,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             'files' => $perTestFiles,
             'tables' => $perTestTables,
             'inertia' => $perTestInertiaComponents,
+            'pre_test_files' => $this->recorder->preTestFiles(),
         ], JSON_UNESCAPED_SLASHES);
 
         if ($json === false) {
@@ -1580,11 +1602,12 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
     /**
      * @param  list<string>  $partialKeys
-     * @return array{0: array<string, list<string>>, 1: array<string, list<string>>, 2: array<string, list<string>>}
+     * @return array{0: array<string, list<string>>, 1: array<string, list<string>>, 2: array<string, list<string>>, 3: list<string>}
      */
     private function consumePartials(array $partialKeys): array
     {
         $merged = ['files' => [], 'tables' => [], 'inertia' => []];
+        $preTestFiles = [];
 
         foreach ($partialKeys as $key) {
             $data = $this->readPartial($key);
@@ -1594,6 +1617,8 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
                 continue;
             }
+
+            $preTestFiles = [...$preTestFiles, ...$data['pre_test_files']];
 
             foreach (['files', 'tables', 'inertia'] as $section) {
                 foreach ($data[$section] as $testFile => $values) {
@@ -1612,11 +1637,12 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             array_map(array_keys(...), $merged['files']),
             array_map(array_keys(...), $merged['tables']),
             array_map(array_keys(...), $merged['inertia']),
+            array_values(array_unique($preTestFiles)),
         ];
     }
 
     /**
-     * @return array{files: array<string, array<int, string>>, tables: array<string, array<int, string>>, inertia: array<string, array<int, string>>}|null
+     * @return array{files: array<string, array<int, string>>, tables: array<string, array<int, string>>, inertia: array<string, array<int, string>>, pre_test_files: list<string>}|null
      */
     private function readPartial(string $key): ?array
     {
@@ -1640,6 +1666,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             'files' => $this->cleanPartialSection($filesSource),
             'tables' => $this->cleanPartialSection($tablesSource),
             'inertia' => $this->cleanPartialSection($inertiaSource),
+            'pre_test_files' => array_values(array_filter(is_array($data['pre_test_files'] ?? null) ? $data['pre_test_files'] : [], is_string(...))),
         ];
     }
 
@@ -2209,14 +2236,11 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         static $labels = [
             'composer_lock' => 'composer.lock',
             'composer_json' => 'composer.json',
-            'phpunit_xml' => 'phpunit.xml',
-            'phpunit_xml_dist' => 'phpunit.xml.dist',
+            'phpunit_config' => 'PHPUnit config',
+            'submodules' => 'Submodule pointer',
             'vite_config' => 'vite.config',
-            'package_json' => 'package.json',
             'package_lock' => 'Node lockfile',
             'js_config' => 'JS/TS config',
-            'pest_factory' => 'Pest internals',
-            'pest_method_factory' => 'Pest internals',
         ];
 
         $seen = [];
