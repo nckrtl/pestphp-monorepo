@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Pest\Plugins\Tia\TestFiles;
 
 beforeEach(function (): void {
-    $this->root = sys_get_temp_dir().'/pest-test-files-'.bin2hex(random_bytes(6)).'/';
+    $this->root = realpath(sys_get_temp_dir()).'/pest-test-files-'.bin2hex(random_bytes(6)).'/';
     mkdir($this->root.'tests', 0755, true);
     mkdir($this->root.'vendor');
     file_put_contents($this->root.'tests/Example.php', '<?php');
