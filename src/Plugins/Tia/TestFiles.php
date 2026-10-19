@@ -4,40 +4,34 @@ declare(strict_types=1);
 
 namespace Pest\Plugins\Tia;
 
-use PHPUnit\Framework\TestCase;
+use Pest\TestSuite;
 use PHPUnit\TextUI\Configuration\File;
 use PHPUnit\TextUI\Configuration\Registry;
-use PHPUnit\Util\Test;
-use ReflectionClass;
 use SebastianBergmann\FileIterator\Facade;
 
 /** @internal */
-final class TestFiles
+final readonly class TestFiles
 {
-    /** @var array<string, self> */
-    private static array $projects = [];
-
     /**
      * @param  list<string>  $directories
      * @param  array<string, true>  $candidates
      * @param  list<string>  $bootstraps
      */
     public function __construct(
-        private readonly string $root,
-        private readonly array $directories,
-        private readonly array $candidates,
-        private readonly array $bootstraps,
+        private string $root,
+        private array $directories,
+        private array $candidates,
+        private array $bootstraps,
     ) {}
 
     public static function fromProjectRoot(string $projectRoot): self
     {
         $root = rtrim(realpath($projectRoot) ?: $projectRoot, '/').'/';
-        if (isset(self::$projects[$root])) {
-            return self::$projects[$root];
-        }
-
         $configuration = Registry::get();
-        $directories = [];
+        $testPath = realpath($root.TestSuite::getInstance()->testPath);
+        $directories = $testPath !== false && str_starts_with($testPath.'/', $root)
+            ? [$testPath.'/']
+            : [];
         $candidates = [];
         $iterator = new Facade;
         foreach ($configuration->testSuite() as $suite) {
@@ -66,7 +60,14 @@ final class TestFiles
             $bootstraps[] = $configuration->bootstrap();
         }
 
-        return self::$projects[$root] = new self($root, array_values(array_unique($directories)), $candidates, $bootstraps);
+        $bootstraps = array_values(array_filter(
+            array_map(realpath(...), $bootstraps),
+            static fn (string|false $path): bool => $path !== false
+                && str_starts_with($path, $root)
+                && ! str_starts_with($path, $root.'vendor/'),
+        ));
+
+        return new self($root, array_values(array_unique($directories)), $candidates, $bootstraps);
     }
 
     public function isCandidate(string $relativePath): bool
@@ -82,29 +83,9 @@ final class TestFiles
     public function startupInputs(array $included, array $defined): array
     {
         $testFiles = array_fill_keys($defined, true);
-        foreach (get_declared_classes() as $class) {
-            if (! is_subclass_of($class, TestCase::class)) {
-                continue;
-            }
-            $reflection = new ReflectionClass($class);
-            $file = $reflection->getFileName();
-            if ($reflection->isAbstract() || $file === false || ! isset($this->candidates[$file])) {
-                continue;
-            }
-            foreach ($reflection->getMethods() as $method) {
-                if (Test::isTestMethod($method)) {
-                    $testFiles[$file] = true;
-                    break;
-                }
-            }
-        }
-
         $inputs = [];
         foreach ($this->bootstraps as $bootstrap) {
-            $path = realpath($bootstrap);
-            if ($path !== false && $this->isProjectFile($path)) {
-                $inputs[substr($path, strlen($this->root))] = true;
-            }
+            $inputs[substr($bootstrap, strlen($this->root))] = true;
         }
         foreach ($included as $file) {
             if (! $this->isProjectFile($file) || (isset($this->candidates[$file]) && isset($testFiles[$file]))) {

@@ -660,7 +660,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $this->branch,
             $changedFiles->snapshotTree($changedFiles->since($currentSha) ?? []),
         );
-        $graph->addPreTestFiles($recorder->preTestFiles());
+        $graph->replacePreTestFiles($recorder->preTestFiles(), complete: ! $this->replayRan);
         $graph->replaceEdges($perTest, keepExisting: $this->piggybackCoverage);
         $graph->replaceTestTables($perTestTables);
         $graph->replaceTestInertiaComponents($perTestInertia);
@@ -766,7 +766,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         }
 
         $this->recorder->recordPreTestFiles();
-        $graph->addPreTestFiles([...$preTestFiles, ...$this->recorder->preTestFiles()]);
+        $graph->replacePreTestFiles([...$preTestFiles, ...$this->recorder->preTestFiles()], complete: ! $this->replayRan);
         $graph->replaceEdges($finalised, keepExisting: $this->piggybackCoverage);
         $graph->replaceTestTables($finalisedTables);
         $graph->replaceTestInertiaComponents($finalisedInertia);

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pest\Subscribers;
 
-use Pest\Plugins\Parallel;
 use Pest\Plugins\Tia\Recorder;
 use PHPUnit\Event\TestRunner\ExecutionFinished;
 use PHPUnit\Event\TestRunner\ExecutionFinishedSubscriber;
@@ -16,7 +15,7 @@ final readonly class EnsureTiaStartupInputsAreRecorded implements ExecutionFinis
 
     public function notify(ExecutionFinished $event): void
     {
-        if ($this->recorder->isActive() || Parallel::isEnabled()) {
+        if ($this->recorder->isActive()) {
             $this->recorder->recordPreTestFiles();
         }
     }

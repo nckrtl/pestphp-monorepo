@@ -16,7 +16,7 @@ beforeEach(function (): void {
         $this->root,
         [$this->root.'tests/'],
         [$this->root.'tests/Example.php' => true, $this->root.'tests/Helper.php' => true],
-        [$this->root.'bootstrap.php', $this->root.'vendor/bootstrap.php'],
+        [$this->root.'bootstrap.php'],
     );
 });
 

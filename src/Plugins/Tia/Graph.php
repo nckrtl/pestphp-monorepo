@@ -759,9 +759,12 @@ final class Graph
     }
 
     /** @param list<string> $paths */
-    public function addPreTestFiles(array $paths): void
+    public function replacePreTestFiles(array $paths, bool $complete): void
     {
-        $this->preTestFiles = array_values(array_unique([...$this->preTestFiles, ...$paths]));
+        $this->preTestFiles = array_values(array_unique([
+            ...($complete ? [] : $this->preTestFiles),
+            ...$paths,
+        ]));
     }
 
     public function setFallbackBranch(string $branch): void

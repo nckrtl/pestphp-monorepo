@@ -348,21 +348,21 @@ test('a shallow repository accepts its available base and rejects an unavailable
 test('loaded test directory inputs widen the suite', function (string $loader, array $arguments): void {
     $xml = file_get_contents($this->project->path('phpunit.xml'));
     $this->project->write('phpunit.xml', str_replace('<directory suffix="Test.php">./tests</directory>', '<directory suffix="Test.php">./tests/Unit</directory><directory suffix="Test.php">./tests/Feature</directory>', $xml));
-    $this->project->write('tests/Unit/Support/shared.php', "<?php define('FIXTURE_INPUT', true);\n");
+    $this->project->write('tests/Support/shared.php', "<?php define('FIXTURE_INPUT', true);\n");
     if ($loader !== 'pest') {
-        $this->project->write('tests/bootstrap.php', "<?php require __DIR__.'/../vendor/autoload.php'; require __DIR__.'/Unit/Support/shared.php';\n");
+        $this->project->write('tests/bootstrap.php', "<?php require __DIR__.'/../vendor/autoload.php'; require __DIR__.'/Support/shared.php';\n");
         $xml = file_get_contents($this->project->path('phpunit.xml'));
         $this->project->write('phpunit.xml', str_replace('bootstrap="vendor/autoload.php"', 'bootstrap="tests/bootstrap.php"', $xml));
     } else {
         $pest = file_get_contents($this->project->path('tests/Pest.php'));
-        $this->project->write('tests/Pest.php', $pest."\nrequire __DIR__.'/Unit/Support/shared.php';\n");
+        $this->project->write('tests/Pest.php', $pest."\nrequire __DIR__.'/Support/shared.php';\n");
     }
     $this->project->write('tests/Unit/InputTest.php', "<?php test('loaded input is correct', fn () => expect(FIXTURE_INPUT)->toBeTrue());\n");
     $this->project->git()->commit('Load shared test input');
     $start = $this->project->git()->sha();
     $record = ($this->run)(['--fresh', ...$arguments]);
     expect($record->exitCode)->toBe(0, $record->describe());
-    $changed = $loader === 'bootstrap' ? 'tests/bootstrap.php' : 'tests/Unit/Support/shared.php';
+    $changed = $loader === 'bootstrap' ? 'tests/bootstrap.php' : 'tests/Support/shared.php';
     $this->project->write($changed, $loader === 'bootstrap'
         ? "<?php require __DIR__.'/../vendor/autoload.php'; define('FIXTURE_INPUT', false);\n"
         : "<?php define('FIXTURE_INPUT', false);\n");
@@ -476,14 +476,14 @@ test('shared test base data providers are recorded as startup inputs', function 
     $base = "<?php abstract class FixtureBase extends \PHPUnit\Framework\TestCase { public static function data(): array { return [[true]]; } }\n";
     $xml = file_get_contents($this->project->path('phpunit.xml'));
     $this->project->write('phpunit.xml', str_replace('<directory suffix="Test.php">./tests</directory>', '<directory suffix="Test.php">./tests/Unit</directory><directory suffix="Test.php">./tests/Feature</directory>', $xml));
-    $this->project->write('tests/Unit/TestCase.php', $base);
-    $this->project->write('tests/Pest.php', file_get_contents($this->project->path('tests/Pest.php'))."\nrequire __DIR__.'/Unit/TestCase.php';\n");
+    $this->project->write('tests/TestCase.php', $base);
+    $this->project->write('tests/Pest.php', file_get_contents($this->project->path('tests/Pest.php'))."\nrequire __DIR__.'/TestCase.php';\n");
     $this->project->write('tests/Unit/InputTest.php', "<?php uses(FixtureBase::class); test('provider input', fn (bool \$value) => expect(\$value)->toBeTrue())->with(FixtureBase::data());\n");
     $this->project->git()->commit('Add shared provider base');
     $start = $this->project->git()->sha();
     $record = ($this->run)(['--fresh', ...$arguments]);
     expect($record->exitCode)->toBe(0, $record->describe());
-    $this->project->write('tests/Unit/TestCase.php', str_replace('[[true]]', '[[false]]', $base));
+    $this->project->write('tests/TestCase.php', str_replace('[[true]]', '[[false]]', $base));
 
     $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
 
@@ -756,4 +756,51 @@ test('filtered parallel recordings retain discovery helpers from excluded tests'
     expect($baseline->exitCode)->toBe(0, $baseline->describe())
         ->and($baseline->affected())->toBe(2, $baseline->describe())
         ->and($this->project->graph()['pre_test_files'])->toContain('tests/Support/excluded.php');
+})->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
+
+test('Pest test root support used only by the bootstrap widens split suites', function (array $arguments): void {
+    $xml = file_get_contents($this->project->path('phpunit.xml'));
+    $xml = str_replace('<directory suffix="Test.php">./tests</directory>', '<directory suffix="Test.php">./tests/Unit</directory><directory suffix="Test.php">./tests/Feature</directory>', $xml);
+    $this->project->write('phpunit.xml', str_replace('bootstrap="vendor/autoload.php"', 'bootstrap="tests/bootstrap.php"', $xml));
+    $support = "<?php final class BootstrapEnvironment { public static function configure(): void { putenv('BOOTSTRAP_READY=yes'); } }\n";
+    $this->project->write('tests/Support/BootstrapEnvironment.php', $support);
+    $this->project->write('tests/bootstrap.php', "<?php require __DIR__.'/../vendor/autoload.php'; require __DIR__.'/Support/BootstrapEnvironment.php'; BootstrapEnvironment::configure();\n");
+    $this->project->write('tests/Unit/EnvironmentTest.php', "<?php test('bootstrap configured the environment', fn () => expect(getenv('BOOTSTRAP_READY'))->toBe('yes'));\n");
+    $this->project->git()->commit('Configure split suite bootstrap support');
+    $start = $this->project->git()->sha();
+    $baseline = ($this->run)(['--fresh', ...$arguments]);
+    expect($baseline->exitCode)->toBe(0, $baseline->describe());
+    $this->project->write('tests/Support/BootstrapEnvironment.php', str_replace('READY=yes', 'READY=no', $support));
+
+    $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
+
+    expect($result->exitCode)->toBe(1, $result->describe())
+        ->and($result->tally())->toContain('1 failed', '6 passed')
+        ->and($result->affected())->toBe(7, $result->describe())
+        ->and($this->project->graph()['pre_test_files'])->toContain('tests/Support/BootstrapEnvironment.php');
+})->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
+
+test('complete recordings discard startup inputs that now define tests', function (array $arguments): void {
+    $support = 'tests/Unit/ConvertedTest.php';
+    $this->project->write($support, "<?php const CONVERTED_SUPPORT = true;\n");
+    $this->project->git()->commit('Load support that matches the suite');
+    $baseline = ($this->run)(['--fresh', ...$arguments]);
+    expect($baseline->exitCode)->toBe(0, $baseline->describe())
+        ->and($this->project->graph()['pre_test_files'])->toContain($support);
+    $test = "<?php test('converted support', fn () => expect(1)->toBe(1));\n";
+    $this->project->write($support, $test);
+    $greeter = file_get_contents($this->project->path('tests/Unit/GreeterTest.php'));
+    $this->project->write('tests/Unit/GreeterTest.php', str_replace('});', "})->skip('Complete recording keeps skipped files');", $greeter));
+    $this->project->git()->commit('Convert support to a test');
+    $record = ($this->run)(['--coverage', ...$arguments]);
+    expect($record->exitCode)->toBe(0, $record->describe())
+        ->and($record->tally())->toContain('5 passed', '2 skipped')
+        ->and($this->project->graph()['pre_test_files'])->not->toContain($support);
+    $start = $this->project->git()->sha();
+    $this->project->write($support, str_replace('toBe(1)', 'toBe(1 + 0)', $test));
+
+    $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->affected())->toBe(1, $result->describe());
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
