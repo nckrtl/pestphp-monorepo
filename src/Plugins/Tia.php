@@ -33,6 +33,7 @@ use Pest\Plugins\Tia\Storage;
 use Pest\Plugins\Tia\TableExtractor;
 use Pest\Plugins\Tia\WatchPatterns;
 use Pest\Support\Container;
+use Pest\Support\Git;
 use Pest\Support\View;
 use Pest\TestCaseFilters\TiaTestCaseFilter;
 use Pest\TestSuite;
@@ -484,6 +485,9 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $watchPatterns = Container::getInstance()->get(WatchPatterns::class);
         self::applyWatchPatternMarks($arguments, $watchPatterns);
         $disabled = $this->hasArgument(self::NO_OPTION, $arguments);
+        if ($disabled && $this->testBase !== null) {
+            throw new InvalidOption('--no-tia cannot be combined with --tia-base.');
+        }
         $cliEnabled = $this->testBase !== null || $this->hasArgument(self::OPTION, $arguments) || self::envFlagEnabled(self::ENV_TIA);
         $alwaysEnabled = $watchPatterns->isEnabled()
             && (! $watchPatterns->isLocally() || Environment::name() === Environment::LOCAL);
@@ -854,8 +858,12 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
                 : new TiaRequiresRemote);
         }
 
-        if ($this->testBase !== null && $this->testBase !== 'graph' && new ChangedFiles($projectRoot)->since($this->testBase) === null) {
-            throw new InvalidOption('--tia-base must name a reachable commit.');
+        if ($this->testBase !== null && $this->testBase !== 'graph') {
+            $commit = new Git($projectRoot)->output(['rev-parse', '--verify', '--end-of-options', $this->testBase.'^{commit}']);
+            if ($commit === null || new ChangedFiles($projectRoot)->since($commit) === null) {
+                throw new InvalidOption('--tia-base must name a reachable commit.');
+            }
+            $this->testBase = $commit;
         }
         if ($this->testBase !== null) {
             Parallel::setGlobal(self::BASE_GLOBAL, $this->testBase);
@@ -1083,6 +1091,13 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
         if ($this->testBase === 'graph' && ($branchSha === null || $changed === null)) {
             $this->renderBadge('WARN', 'Graph has no reachable default-branch commit — recording the full suite.');
+
+            return $this->enterRecordMode($arguments);
+        }
+
+        if ($this->testBase !== null && $this->testBase !== 'graph'
+            && Fingerprint::touchesInputs($changedFiles->since($this->testBase, includeBehaviourallyUnchanged: true) ?? [])) {
+            $this->renderBadge('WARN', 'Commit delta changes a fingerprint input — recording the full suite.');
 
             return $this->enterRecordMode($arguments);
         }

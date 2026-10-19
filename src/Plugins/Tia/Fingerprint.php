@@ -14,6 +14,10 @@ final readonly class Fingerprint
 {
     private const int SCHEMA_VERSION = 20;
 
+    private const array JS_CONFIG_NAMES = ['tsconfig.json', 'tsconfig.app.json', 'jsconfig.json'];
+
+    private const array PACKAGE_LOCK_NAMES = ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb'];
+
     /**
      * @var array<int, class-string<Lockfile>>
      */
@@ -159,6 +163,17 @@ final readonly class Fingerprint
         return $normalised;
     }
 
+    /** @param array<int, string> $paths */
+    public static function touchesInputs(array $paths): bool
+    {
+        return array_intersect($paths, [
+            'composer.lock', 'phpunit.xml', 'phpunit.xml.dist',
+            ...JsModuleGraph::VITE_CONFIG_NAMES,
+            ...self::JS_CONFIG_NAMES,
+            ...self::PACKAGE_LOCK_NAMES,
+        ]) !== [];
+    }
+
     private static function viteConfigHash(string $projectRoot): ?string
     {
         $parts = [];
@@ -182,7 +197,7 @@ final readonly class Fingerprint
     {
         $parts = [];
 
-        foreach (['tsconfig.json', 'tsconfig.app.json', 'jsconfig.json'] as $name) {
+        foreach (self::JS_CONFIG_NAMES as $name) {
             if (! self::isTrackedByGit($projectRoot, $name)) {
                 continue;
             }
@@ -206,7 +221,7 @@ final readonly class Fingerprint
     {
         $parts = [];
 
-        foreach (['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb'] as $name) {
+        foreach (self::PACKAGE_LOCK_NAMES as $name) {
             if (! self::isTrackedByGit($projectRoot, $name)) {
                 continue;
             }
