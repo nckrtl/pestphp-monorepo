@@ -460,7 +460,7 @@ final class Graph
      */
     private function applyTestFileChanges(array $nonMigrationPaths, array &$affectedSet): void
     {
-        $testPaths = TestPaths::fromProjectRoot($this->projectRoot);
+        $testFiles = TestFiles::fromProjectRoot($this->projectRoot);
         if (array_intersect($this->preTestFiles, $nonMigrationPaths) !== []) {
             foreach (array_keys($this->edges) as $testFile) {
                 $affectedSet[$testFile] = true;
@@ -468,10 +468,10 @@ final class Graph
         }
 
         foreach ($nonMigrationPaths as $rel) {
-            if (isset($affectedSet[$rel])) {
+            if (isset($affectedSet[$rel]) || in_array($rel, $this->preTestFiles, true)) {
                 continue;
             }
-            if (! $testPaths->isTestFile($rel)) {
+            if (! $testFiles->isCandidate($rel)) {
                 continue;
             }
             if (! is_file($this->projectRoot.'/'.$rel)) {
@@ -759,9 +759,12 @@ final class Graph
     }
 
     /** @param list<string> $paths */
-    public function addPreTestFiles(array $paths): void
+    public function replacePreTestFiles(array $paths, bool $complete): void
     {
-        $this->preTestFiles = array_values(array_unique([...$this->preTestFiles, ...$paths]));
+        $this->preTestFiles = array_values(array_unique([
+            ...($complete ? [] : $this->preTestFiles),
+            ...$paths,
+        ]));
     }
 
     public function setFallbackBranch(string $branch): void

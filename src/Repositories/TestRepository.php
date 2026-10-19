@@ -26,6 +26,9 @@ final class TestRepository
      */
     private array $testCases = [];
 
+    /** @var array<string, true> */
+    private array $definedFilenames = [];
+
     /**
      * @var array<string, array{0: array<int, string>, 1: array<int, string>, 2: array<int, array<int, string|Closure>>}>
      */
@@ -113,8 +116,16 @@ final class TestRepository
         return $this->testCases[$filename] ?? null;
     }
 
+    /** @return list<string> */
+    public function getDefinedFilenames(): array
+    {
+        return array_keys($this->definedFilenames);
+    }
+
     public function set(TestCaseMethodFactory $method): void
     {
+        $this->definedFilenames[$method->filename] = true;
+
         foreach ($this->testCaseFilters as $filter) {
             if (! $filter->accept($method->filename)) {
                 return;

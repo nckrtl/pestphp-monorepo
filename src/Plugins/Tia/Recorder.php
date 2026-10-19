@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pest\Plugins\Tia;
 
 use Pest\TestSuite;
-use PHPUnit\TextUI\Configuration\Registry;
 use ReflectionClass;
 
 /**
@@ -90,8 +89,6 @@ final class Recorder
         if (! $this->active) {
             return;
         }
-
-        $this->preTestFiles ??= $this->capturePreTestFiles();
 
         if ($this->captureCoverage && ! $this->driverAvailable()) {
             return;
@@ -260,39 +257,13 @@ final class Recorder
         $this->perTestInertiaComponents[$this->currentTestFile][$component] = true;
     }
 
-    /** @return list<string> */
-    private function capturePreTestFiles(): array
+    public function recordPreTestFiles(): void
     {
         $suite = TestSuite::getInstance();
-        $root = rtrim($suite->rootPath, '/').'/';
-        $testRoot = $root.trim($suite->testPath, '/').'/';
-        $paths = TestPaths::fromProjectRoot($suite->rootPath);
-        $testFiles = array_fill_keys($suite->tests->getFilenames(), true);
-        $configuration = Registry::get();
-        $bootstrapPaths = array_values($configuration->bootstrapForTestSuite());
-        if ($configuration->hasBootstrap()) {
-            $bootstrapPaths[] = $configuration->bootstrap();
-        }
-        $bootstraps = [];
-        foreach ($bootstrapPaths as $path) {
-            $path = realpath($path);
-            if ($path !== false) {
-                $bootstraps[$path] = true;
-            }
-        }
-        $files = [];
-        foreach (get_included_files() as $file) {
-            if (! str_starts_with($file, $root) || isset($testFiles[$file])) {
-                continue;
-            }
-            $relative = substr($file, strlen($root));
-            if (str_starts_with($file, $testRoot) || $paths->contains($relative)
-                || (isset($bootstraps[$file]) && ! str_starts_with($relative, 'vendor/'))) {
-                $files[] = $relative;
-            }
-        }
-
-        return $files;
+        $this->preTestFiles = TestFiles::fromProjectRoot($suite->rootPath)->startupInputs(
+            get_included_files(),
+            $suite->tests->getDefinedFilenames(),
+        );
     }
 
     /** @return list<string> */

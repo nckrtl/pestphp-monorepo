@@ -26,6 +26,7 @@ final readonly class BootSubscribers implements Bootstrapper
         Subscribers\EnsureTiaIsRunningPestTestsOnly::class,
         Subscribers\EnsureTiaStarts::class,
         Subscribers\EnsureTiaEnds::class,
+        Subscribers\EnsureTiaStartupInputsAreRecorded::class,
         Subscribers\EnsureTiaResultsAreCollected::class,
         Subscribers\EnsureTiaResultIsRecordedOnPassed::class,
         Subscribers\EnsureTiaResultIsRecordedOnFailed::class,
