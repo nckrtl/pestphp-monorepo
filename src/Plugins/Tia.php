@@ -51,6 +51,10 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
     private const string NO_OPTION = '--no-tia';
 
+    private const string BASE_OPTION = '--tia-base';
+
+    private const string BASE_GLOBAL = 'TIA_BASE';
+
     private const string FRESH_OPTION = '--fresh';
 
     private const string REFETCH_OPTION = '--refetch';
@@ -141,6 +145,8 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
     private const array UNSUPPORTED_OPTIONS = [
         '--covers', '--uses', '--random-order-seed',
     ];
+
+    private ?string $testBase = null;
 
     private bool $graphWritten = false;
 
@@ -308,7 +314,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
         self::applyWatchPatternMarks($arguments, $watchPatterns);
 
-        if (self::argumentPresent(self::OPTION, $arguments) || self::envFlagEnabled(self::ENV_TIA)) {
+        if (self::argumentPresent(self::OPTION, $arguments) || self::argumentPresent(self::BASE_OPTION, $arguments) || self::envFlagEnabled(self::ENV_TIA)) {
             return true;
         }
 
@@ -405,6 +411,12 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return null;
         }
 
+        if ($this->testBase !== null) {
+            $this->executedCount++;
+
+            return null;
+        }
+
         $result = $this->replayGraph->getResult($this->branch, $testId);
 
         if ($result instanceof TestStatus) {
@@ -458,6 +470,12 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             exit(0);
         }
 
+        $baseRequested = $this->hasArgument(self::BASE_OPTION, $arguments);
+        $this->testBase = $this->popArgumentValue(self::BASE_OPTION, $arguments);
+        if ($baseRequested && ($this->testBase === null || $this->testBase === '')) {
+            throw new InvalidOption('--tia-base requires graph or a commit.');
+        }
+
         $isWorker = Parallel::isWorker();
         $recordingGlobal = $isWorker && (string) Parallel::getGlobal(self::RECORDING_GLOBAL) === '1';
         $replayingGlobal = $isWorker && (string) Parallel::getGlobal(self::REPLAYING_GLOBAL) === '1';
@@ -466,7 +484,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $watchPatterns = Container::getInstance()->get(WatchPatterns::class);
         self::applyWatchPatternMarks($arguments, $watchPatterns);
         $disabled = $this->hasArgument(self::NO_OPTION, $arguments);
-        $cliEnabled = $this->hasArgument(self::OPTION, $arguments) || self::envFlagEnabled(self::ENV_TIA);
+        $cliEnabled = $this->testBase !== null || $this->hasArgument(self::OPTION, $arguments) || self::envFlagEnabled(self::ENV_TIA);
         $alwaysEnabled = $watchPatterns->isEnabled()
             && (! $watchPatterns->isLocally() || Environment::name() === Environment::LOCAL);
         if (! $isWorker && ! $disabled && ($cliEnabled || $alwaysEnabled)) {
@@ -475,6 +493,9 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
         $hasExplicitPath = $this->hasExplicitPathArgument($arguments);
         $partial = ! $isWorker && ($hasExplicitPath || $this->hasPartialSelection($arguments));
+        if ($this->testBase !== null && $partial) {
+            throw new InvalidOption('--tia-base cannot be combined with a partial test selection.');
+        }
         $disabled = $disabled || $partial;
 
         $mutating = self::isMutationRun($this->originalArguments);
@@ -483,9 +504,9 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $this->writesSuppressed = true;
         }
         $enabled = ! $disabled && ($cliEnabled || $alwaysEnabled);
-        $this->filteredMode = ($this->hasArgument(self::FILTERED_OPTION, $arguments) || self::envFlagEnabled(self::ENV_FILTERED) || $watchPatterns->isFiltered())
+        $this->filteredMode = $this->testBase !== null || (($this->hasArgument(self::FILTERED_OPTION, $arguments) || self::envFlagEnabled(self::ENV_FILTERED) || $watchPatterns->isFiltered())
             && ! $hasExplicitPath
-            && ! $this->coverageReportActive();
+            && ! $this->coverageReportActive());
         $freshRequested = $this->hasArgument(self::FRESH_OPTION, $arguments);
         $this->forceRefetch = $this->hasArgument(self::REFETCH_OPTION, $arguments);
 
@@ -833,6 +854,13 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
                 : new TiaRequiresRemote);
         }
 
+        if ($this->testBase !== null && $this->testBase !== 'graph' && new ChangedFiles($projectRoot)->since($this->testBase) === null) {
+            throw new InvalidOption('--tia-base must name a reachable commit.');
+        }
+        if ($this->testBase !== null) {
+            Parallel::setGlobal(self::BASE_GLOBAL, $this->testBase);
+        }
+
         $fingerprint = Fingerprint::compute($projectRoot);
         $this->startFingerprint = $fingerprint;
 
@@ -846,7 +874,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $graph = $this->reconcileFingerprint($graph, $fingerprint);
         }
 
-        if ($graph instanceof Graph) {
+        if ($graph instanceof Graph && $this->testBase === null) {
             $changedFiles = new ChangedFiles($projectRoot);
             $branchSha = $graph->recordedAtSha($this->branch);
 
@@ -870,13 +898,17 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             }
         }
 
-        $coverageCacheOwned = $this->piggybackCoverage && $this->pestCoverageActive();
+        $coverageCacheOwned = $this->testBase === null && $this->piggybackCoverage && $this->pestCoverageActive();
+
+        if ($this->testBase !== null) {
+            $this->state->delete(self::KEY_COVERAGE_MARKER);
+        }
 
         if ($coverageCacheOwned) {
             $this->state->write(self::KEY_COVERAGE_MARKER, '');
         }
 
-        if (! $graph instanceof Graph && $this->piggybackCoverage) {
+        if (! $graph instanceof Graph && $this->piggybackCoverage && $this->testBase === null) {
             $this->emitCoverageScopedRecordSkipped();
 
             return $arguments;
@@ -927,6 +959,8 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
     private function handleWorker(array $arguments, string $projectRoot, bool $recordingGlobal, bool $replayingGlobal): array
     {
         $this->resolveBranch($projectRoot);
+        $base = Parallel::getGlobal(self::BASE_GLOBAL);
+        $this->testBase = is_string($base) && $base !== '' ? $base : null;
 
         if ($replayingGlobal) {
             $this->installWorkerReplay($projectRoot);
@@ -1042,13 +1076,25 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
     {
         $changedFiles = new ChangedFiles($projectRoot);
 
-        $branchSha = $graph->recordedAtSha($this->branch);
-        $changed = $changedFiles->since($branchSha) ?? [];
+        $branchSha = $this->testBase === 'graph'
+            ? $graph->recordedAtSha($this->fallbackBranch)
+            : ($this->testBase ?? $graph->recordedAtSha($this->branch));
+        $changed = $changedFiles->since($branchSha);
 
-        $changed = $changedFiles->filterUnchangedSinceLastRun(
-            $changed,
-            $graph->lastRunTree($this->branch),
-        );
+        if ($this->testBase === 'graph' && ($branchSha === null || $changed === null)) {
+            $this->renderBadge('WARN', 'Graph has no reachable default-branch commit — recording the full suite.');
+
+            return $this->enterRecordMode($arguments);
+        }
+
+        $changed ??= [];
+
+        if ($this->testBase === null) {
+            $changed = $changedFiles->filterUnchangedSinceLastRun(
+                $changed,
+                $graph->lastRunTree($this->branch),
+            );
+        }
 
         $hasProjectPhpSourceChanges = $this->hasProjectPhpSourceChanges($changed);
         $coverageAvailable = $this->piggybackCoverage || $this->recorder->driverAvailable();
@@ -1066,14 +1112,14 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $affectedFromChanges = $changed === [] ? [] : $graph->testFilesOnDisk($graph->affected($changed));
         $rerunFromCache = [];
 
-        if ($this->filteredMode && $graph->hasUnlocatedTestsToRerun($this->branch)) {
+        if ($this->testBase === null && $this->filteredMode && $graph->hasUnlocatedTestsToRerun($this->branch)) {
             $this->filteredMode = false;
 
             $this->renderBadge('WARN', 'Some cached tests due a re-run could not be located on disk.');
             $this->renderChild('Running the full suite with replay instead of a filtered run.');
         }
 
-        if ($this->filteredMode) {
+        if ($this->testBase === null && $this->filteredMode) {
             $rerunFromCache = $graph->testFilesToRerun($this->branch);
         }
 

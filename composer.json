@@ -108,7 +108,7 @@
         ],
         "test:affected": [
             "@php bin/pest tests/Unit/Plugins/Tia --test-suffix=.php --compact",
-            "@php bin/pest tests/Features/Tia/BranchShapes.php tests/Features/Tia/PreciseSelection.php --compact"
+            "@php bin/pest tests/Features/Tia/BranchShapes.php tests/Features/Tia/PreciseSelection.php tests/Features/Tia/ExplicitBase.php --compact"
         ],
         "check": [
             "@composer validate --strict",

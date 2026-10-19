@@ -185,6 +185,7 @@
   --ai ..... Run a code snippet as a fully scaffolded test for AI verification  
 
   TIA OPTIONS:
+  --tia --tia-base=graph|COMMIT  Select tests from graph edges and changed files without replaying stored results  
   --tia  Re-run only the tests affected by your changes, replaying the rest from cache  
   --no-tia ......................... Disable test impact analysis for this run  
   --tia --fresh .... Discard the recorded dependency graph and record it again  
