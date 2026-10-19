@@ -233,7 +233,7 @@ test('a commit delta containing a fingerprint input records the full suite after
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($result->tally())->toContain('6 passed')
         ->and($result->replayed())->toBe(0, $result->describe());
-})->with(['composer.lock', 'phpunit.xml', 'phpunit.xml.dist', 'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb', 'tsconfig.json', 'tsconfig.app.json', 'jsconfig.json', 'vite.config.ts'])->skipOnWindows();
+})->with(['composer.lock', 'composer.json', 'phpunit.xml', 'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb', 'tsconfig.json', 'tsconfig.app.json', 'jsconfig.json', 'vite.config.ts'])->skipOnWindows();
 
 test('a tracked fingerprint input cannot be hidden by gitignore', function (): void {
     $this->project->write('composer.lock', '{}');
@@ -256,7 +256,8 @@ test('a tracked fingerprint input cannot be hidden by gitignore', function (): v
 })->skipOnWindows();
 
 test('a bootstrap change widens explicit selection', function (string $base): void {
-    $this->project->seed('master');
+    $record = ($this->run)(['--fresh']);
+    expect($record->exitCode)->toBe(0, $record->describe());
     $start = $this->project->git()->sha();
     $contents = file_get_contents($this->project->path('tests/Pest.php'));
     $this->project->write('tests/Pest.php', $contents."\nexpect()->extend('fixtureTrue', fn () => true);\n");
@@ -341,4 +342,157 @@ test('a shallow repository accepts its available base and rejects an unavailable
         ->and($available->affected())->toBe(4, $available->describe())
         ->and($unavailable->exitCode)->toBe(1, $unavailable->describe())
         ->and($unavailable->output)->toContain('--tia-base must name a reachable commit');
+})->skipOnWindows();
+
+test('loaded test path inputs widen the suite before any test executes', function (string $loader, array $arguments): void {
+    $xml = file_get_contents($this->project->path('phpunit.xml'));
+    $this->project->write('phpunit.xml', str_replace('<directory suffix="Test.php">./tests</directory>', '<directory suffix="Test.php">./tests/Unit</directory><directory suffix="Test.php">./tests/Feature</directory>', $xml));
+    $this->project->write('tests/Support/shared.php', "<?php define('FIXTURE_INPUT', true);\n");
+    if ($loader !== 'pest') {
+        $this->project->write('tests/bootstrap.php', "<?php require __DIR__.'/../vendor/autoload.php'; require __DIR__.'/Support/shared.php';\n");
+        $xml = file_get_contents($this->project->path('phpunit.xml'));
+        $this->project->write('phpunit.xml', str_replace('bootstrap="vendor/autoload.php"', 'bootstrap="tests/bootstrap.php"', $xml));
+    } else {
+        $pest = file_get_contents($this->project->path('tests/Pest.php'));
+        $this->project->write('tests/Pest.php', $pest."\nrequire __DIR__.'/Support/shared.php';\n");
+    }
+    $this->project->write('tests/Unit/InputTest.php', "<?php test('loaded input is correct', fn () => expect(FIXTURE_INPUT)->toBeTrue());\n");
+    $this->project->git()->commit('Load shared test input');
+    $start = $this->project->git()->sha();
+    $record = ($this->run)(['--fresh', ...$arguments]);
+    expect($record->exitCode)->toBe(0, $record->describe());
+    $changed = $loader === 'bootstrap' ? 'tests/bootstrap.php' : 'tests/Support/shared.php';
+    $this->project->write($changed, $loader === 'bootstrap'
+        ? "<?php require __DIR__.'/../vendor/autoload.php'; define('FIXTURE_INPUT', false);\n"
+        : "<?php define('FIXTURE_INPUT', false);\n");
+
+    $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
+    $full = $this->project->pest('--no-tia', ...$arguments);
+
+    expect($result->exitCode)->toBe(1, $result->describe())
+        ->and($result->tally())->toContain('1 failed', '6 passed')
+        ->and($full->exitCode)->toBe(1, $full->describe());
+})->with(['bootstrap', 'phpunit', 'pest'])->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
+
+test('the actual phpunit config is a fingerprint input', function (string $config, array $arguments): void {
+    $this->project->git()->run(['mv', 'phpunit.xml', $config]);
+    $this->project->git()->commit('Choose configuration');
+    $start = $this->project->git()->sha();
+    $record = ($this->run)(['--fresh', ...$arguments]);
+    expect($record->exitCode)->toBe(0, $record->describe());
+    $this->project->write($config, str_replace('colors="true"', 'colors="false"', file_get_contents($this->project->path($config))));
+    $this->project->git()->commit('Change loaded configuration');
+    $warm = ($this->run)($arguments);
+    expect($warm->exitCode)->toBe(0, $warm->describe())->and($warm->tally())->toContain('6 passed');
+
+    $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->tally())->toContain('6 passed')
+        ->and($result->replayed())->toBe(0, $result->describe());
+})->with([
+    'default' => ['phpunit.dist.xml', []],
+    'custom' => ['phpunit.guidance.xml', ['-c', 'phpunit.guidance.xml']],
+    'custom equals' => ['phpunit.guidance.xml', ['--configuration=phpunit.guidance.xml']],
+])->skipOnWindows();
+
+test('tracked ignored source files remain affected', function (): void {
+    $this->project->write('.gitignore', file_get_contents($this->project->path('.gitignore'))."\n/app/Calculator.php\n");
+    $this->project->git()->commit('Ignore untracked source');
+    $this->project->seed('master');
+    $start = $this->project->git()->sha();
+    $source = file_get_contents($this->project->path('app/Calculator.php'));
+    $this->project->write('app/Calculator.php', str_replace('$a + $b', '$a + $b + 0', $source));
+
+    $result = ($this->run)(['--tia-base='.$start]);
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->affected())->toBe(4, $result->describe());
+})->skipOnWindows();
+
+test('an indexed ignored composer input changes the fingerprint', function (string $path): void {
+    if ($path === 'composer.lock') {
+        $this->project->write($path, '{}');
+        $this->project->git()->commit('Track lockfile');
+    }
+    $this->project->write('.gitignore', file_get_contents($this->project->path('.gitignore'))."\n/".$path."\n");
+    $this->project->git()->commit('Ignore untracked manifests');
+    $record = ($this->run)(['--fresh']);
+    expect($record->exitCode)->toBe(0, $record->describe());
+    $manifest = json_decode(file_get_contents($this->project->path($path)), true);
+    $manifest['autoload']['files'] = ['app/Calculator.php'];
+    $this->project->write($path, json_encode($manifest, JSON_PRETTY_PRINT));
+
+    $result = ($this->run)(['--tia-base=graph']);
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->tally())->toContain('6 passed');
+})->with(['composer.json', 'composer.lock'])->skipOnWindows();
+
+test('changed submodule pointers widen explicit selection', function (): void {
+    $module = Project::make('master');
+    $this->project->git()->run(['-c', 'protocol.file.allow=always', 'submodule', 'add', $module->path(), 'dependency']);
+    $this->project->git()->commit('Add dependency submodule');
+    $record = ($this->run)(['--fresh']);
+    expect($record->exitCode)->toBe(0, $record->describe());
+    $start = $this->project->git()->sha();
+    $module->git()->commit('New dependency version');
+    $sha = $module->git()->sha();
+    $this->project->git()->run(['-C', 'dependency', 'fetch', 'origin']);
+    $this->project->git()->run(['-C', 'dependency', 'checkout', $sha]);
+    $this->project->git()->commit('Update dependency pointer');
+    $warm = ($this->run)([]);
+    expect($warm->exitCode)->toBe(0, $warm->describe());
+
+    $result = ($this->run)(['--tia-base='.$start]);
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->tally())->toContain('6 passed');
+})->skipOnWindows();
+
+test('recorded startup inputs do not widen ordinary source or individual test edits', function (string $path, int $count): void {
+    $record = ($this->run)(['--fresh']);
+    expect($record->exitCode)->toBe(0, $record->describe());
+    $start = $this->project->git()->sha();
+    $source = file_get_contents($this->project->path($path));
+    $this->project->write($path, str_replace(['$a + $b', 'toBe(3)'], ['$a + $b + 0', 'toBe(3 + 0)'], $source));
+
+    $result = ($this->run)(['--tia-base='.$start]);
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->affected())->toBe($count, $result->describe());
+})->with(['source' => ['app/Calculator.php', 4], 'test' => ['tests/Unit/CalculatorTest.php', 2]])->skipOnWindows();
+
+test('shared test base data providers are recorded as startup inputs', function (array $arguments): void {
+    $base = "<?php abstract class FixtureBase extends \PHPUnit\Framework\TestCase { public static function data(): array { return [[true]]; } }\n";
+    $xml = file_get_contents($this->project->path('phpunit.xml'));
+    $this->project->write('phpunit.xml', str_replace('<directory suffix="Test.php">./tests</directory>', '<directory suffix="Test.php">./tests/Unit</directory><directory suffix="Test.php">./tests/Feature</directory>', $xml));
+    $this->project->write('tests/TestCase.php', $base);
+    $this->project->write('tests/Pest.php', file_get_contents($this->project->path('tests/Pest.php'))."\nrequire __DIR__.'/TestCase.php';\n");
+    $this->project->write('tests/Unit/InputTest.php', "<?php uses(FixtureBase::class); test('provider input', fn (bool \$value) => expect(\$value)->toBeTrue())->with(FixtureBase::data());\n");
+    $this->project->git()->commit('Add shared provider base');
+    $start = $this->project->git()->sha();
+    $record = ($this->run)(['--fresh', ...$arguments]);
+    expect($record->exitCode)->toBe(0, $record->describe());
+    $this->project->write('tests/TestCase.php', str_replace('[[true]]', '[[false]]', $base));
+
+    $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
+
+    expect($result->exitCode)->toBe(1, $result->describe())
+        ->and($result->tally())->toContain('1 failed', '6 passed');
+})->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
+
+test('an ignored active config is still fingerprinted', function (): void {
+    $this->project->git()->run(['mv', 'phpunit.xml', 'phpunit.dist.xml']);
+    $this->project->git()->commit('Use distributed config');
+    $this->project->write('.gitignore', file_get_contents($this->project->path('.gitignore'))."\n/phpunit.guidance.xml\n");
+    $this->project->write('phpunit.guidance.xml', file_get_contents($this->project->path('phpunit.dist.xml')));
+    $record = ($this->run)(['--fresh', '-c', 'phpunit.guidance.xml']);
+    expect($record->exitCode)->toBe(0, $record->describe());
+    $this->project->write('phpunit.guidance.xml', str_replace('colors="true"', 'colors="false"', file_get_contents($this->project->path('phpunit.guidance.xml'))));
+
+    $result = ($this->run)(['--tia-base=graph', '-c', 'phpunit.guidance.xml']);
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->tally())->toContain('6 passed');
 })->skipOnWindows();

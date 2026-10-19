@@ -50,6 +50,9 @@ final class Graph
     /** @var array<string, mixed> */
     private array $fingerprint = [];
 
+    /** @var list<string> */
+    private array $preTestFiles = [];
+
     /**
      * @var array<string, array{
      *     sha: ?string,
@@ -458,9 +461,7 @@ final class Graph
     private function applyTestFileChanges(array $nonMigrationPaths, array &$affectedSet): void
     {
         $testPaths = TestPaths::fromProjectRoot($this->projectRoot);
-        $bootstrap = $this->relative(TestSuite::getInstance()->testPath.'/Pest.php');
-
-        if (in_array($bootstrap, $nonMigrationPaths, true)) {
+        if (array_intersect($this->preTestFiles, $nonMigrationPaths) !== []) {
             foreach (array_keys($this->edges) as $testFile) {
                 $affectedSet[$testFile] = true;
             }
@@ -755,6 +756,12 @@ final class Graph
     public function fingerprint(): array
     {
         return $this->fingerprint;
+    }
+
+    /** @param list<string> $paths */
+    public function addPreTestFiles(array $paths): void
+    {
+        $this->preTestFiles = array_values(array_unique([...$this->preTestFiles, ...$paths]));
     }
 
     public function setFallbackBranch(string $branch): void
@@ -1739,6 +1746,7 @@ final class Graph
 
         $graph = new self($projectRoot);
         $graph->fingerprint = is_array($data['fingerprint'] ?? null) ? $data['fingerprint'] : [];
+        $graph->preTestFiles = array_values(self::decodeFiles($data['pre_test_files'] ?? null));
         $graph->files = self::decodeFiles($data['files'] ?? null);
         $graph->fileIds = array_flip($graph->files);
         $graph->edges = self::decodeEdges($data['edges'] ?? null);
@@ -1941,6 +1949,7 @@ final class Graph
         $payload = [
             'schema' => 1,
             'fingerprint' => $this->fingerprint,
+            'pre_test_files' => $this->preTestFiles,
             'files' => $this->files,
             'edges' => $this->edges,
             'baselines' => $this->baselines,

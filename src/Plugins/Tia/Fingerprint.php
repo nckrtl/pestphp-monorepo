@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Pest\Plugins\Tia;
 
 use Pest\Plugins\Tia\Contracts\Lockfile;
-use Symfony\Component\Finder\Finder;
+use Pest\Support\Git;
+use PHPUnit\Event\Facade as EventFacade;
+use PHPUnit\TextUI\CliArguments\Builder;
+use PHPUnit\TextUI\CliArguments\XmlConfigurationFileFinder;
 
 /**
  * @internal
  */
 final readonly class Fingerprint
 {
-    private const int SCHEMA_VERSION = 20;
+    private const int SCHEMA_VERSION = 21;
 
     private const array JS_CONFIG_NAMES = ['tsconfig.json', 'tsconfig.app.json', 'jsconfig.json'];
 
@@ -26,27 +29,36 @@ final readonly class Fingerprint
     ];
 
     /**
+     * @param  array<int, string>  $arguments
      * @return array{
      *     structural: array<string, int|string|null>,
      *     environmental: array<string, int|string|null>,
      * }
      */
-    public static function compute(string $projectRoot): array
+    public static function compute(string $projectRoot, array $arguments = []): array
     {
-        return [
-            'structural' => [
-                'schema' => self::SCHEMA_VERSION,
-                'composer_lock' => self::composerLockHash($projectRoot),
-                'phpunit_xml' => self::trackedHash($projectRoot, 'phpunit.xml'),
-                'phpunit_xml_dist' => self::trackedHash($projectRoot, 'phpunit.xml.dist'),
-                'vite_config' => self::viteConfigHash($projectRoot),
-                'package_lock' => self::packageLockHash($projectRoot),
-                'js_config' => self::jsConfigHash($projectRoot),
-            ],
-            'environmental' => [
-                'php_minor' => PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION,
+        $structural = ['schema' => self::SCHEMA_VERSION];
 
-            ],
+        foreach (self::inputs($projectRoot, $arguments) as $group => $paths) {
+            $parts = [];
+            foreach ($paths as $path) {
+                if ($group !== 'phpunit_config' && ! self::isTrackedByGit($projectRoot, $path)) {
+                    continue;
+                }
+                $hash = $group === 'package_lock'
+                    ? self::lockfileHash((str_starts_with($path, '/') ? $path : $projectRoot.'/'.$path), basename($path))
+                    : self::hashIfExists((str_starts_with($path, '/') ? $path : $projectRoot.'/'.$path));
+                if ($hash !== null) {
+                    $parts[] = $path.':'.$hash;
+                }
+            }
+            $structural[$group] = $parts === [] ? null : hash('xxh128', implode("\n", $parts));
+        }
+        $structural['gitlinks'] = self::gitlinks($projectRoot);
+
+        return [
+            'structural' => $structural,
+            'environmental' => ['php_minor' => PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION],
         ];
     }
 
@@ -163,77 +175,74 @@ final readonly class Fingerprint
         return $normalised;
     }
 
-    /** @param array<int, string> $paths */
-    public static function touchesInputs(array $paths): bool
+    /**
+     * @param  array<int, string>  $paths
+     * @param  array<int, string>  $arguments
+     */
+    public static function touchesInputs(array $paths, string $projectRoot, array $arguments = [], ?string $base = null): bool
     {
-        return array_intersect($paths, [
-            'composer.lock', 'phpunit.xml', 'phpunit.xml.dist',
-            ...JsModuleGraph::VITE_CONFIG_NAMES,
-            ...self::JS_CONFIG_NAMES,
-            ...self::PACKAGE_LOCK_NAMES,
-        ]) !== [];
+        return array_intersect($paths, array_merge(...array_values(self::inputs($projectRoot, $arguments, $base)))) !== [];
     }
 
-    private static function viteConfigHash(string $projectRoot): ?string
+    /**
+     * @param  array<int, string>  $arguments
+     * @return array<string, list<string>>
+     */
+    private static function inputs(string $projectRoot, array $arguments, ?string $base = null): array
     {
-        $parts = [];
-
-        foreach (JsModuleGraph::VITE_CONFIG_NAMES as $name) {
-            if (! self::isTrackedByGit($projectRoot, $name)) {
-                continue;
+        $configurationArguments = ['--configuration', $projectRoot];
+        foreach ($arguments as $index => $argument) {
+            if (in_array($argument, ['-c', '--configuration'], true)) {
+                $configurationArguments = [$argument, $arguments[$index + 1] ?? ''];
+            } elseif ($argument === '--no-configuration' || str_starts_with($argument, '--configuration=') || (str_starts_with($argument, '-c') && strlen($argument) > 2)) {
+                $configurationArguments = [$argument];
             }
-
-            $hash = self::contentHashOrNull($projectRoot.'/'.$name);
-
-            if ($hash !== null) {
-                $parts[] = $name.':'.$hash;
+        }
+        $configuration = new Builder(EventFacade::emitter())->fromParameters($configurationArguments);
+        $path = new XmlConfigurationFileFinder()->find($configuration);
+        if (is_string($path)) {
+            $path = realpath($path) ?: $path;
+            $prefix = rtrim($projectRoot, '/').'/';
+            if (str_starts_with($path, $prefix)) {
+                $path = substr($path, strlen($prefix));
             }
         }
 
-        return $parts === [] ? null : hash('xxh128', implode("\n", $parts));
+        return [
+            'composer_lock' => ['composer.lock'],
+            'composer_json' => ['composer.json'],
+            'phpunit_config' => is_string($path) ? [$path] : [],
+            'vite_config' => JsModuleGraph::VITE_CONFIG_NAMES,
+            'package_lock' => self::PACKAGE_LOCK_NAMES,
+            'js_config' => self::JS_CONFIG_NAMES,
+            'submodules' => array_keys(self::gitlinkEntries($projectRoot, $base)),
+        ];
     }
 
-    private static function jsConfigHash(string $projectRoot): ?string
+    /** @return array<string, string> */
+    private static function gitlinkEntries(string $projectRoot, ?string $base = null): array
     {
-        $parts = [];
-
-        foreach (self::JS_CONFIG_NAMES as $name) {
-            if (! self::isTrackedByGit($projectRoot, $name)) {
-                continue;
-            }
-
-            $hash = self::hashIfExists($projectRoot.'/'.$name);
-
-            if ($hash !== null) {
-                $parts[] = $name.':'.$hash;
+        $git = new Git($projectRoot);
+        $entries = $git->raw(['ls-files', '--stage', '-z']) ?? '';
+        if ($base !== null) {
+            $entries .= $git->raw(['ls-tree', '-r', '-z', $base, '--', '.']) ?? '';
+        }
+        $links = [];
+        foreach (explode("\0", $entries) as $entry) {
+            if (preg_match('/^160000 (?:commit )?([a-f0-9]+)(?: [0-3])?\t(.+)$/s', $entry, $matches) === 1) {
+                $links[$matches[2]] = $matches[1];
             }
         }
+        ksort($links);
 
-        return $parts === [] ? null : hash('xxh128', implode("\n", $parts));
+        return $links;
     }
 
-    private static function composerLockHash(string $projectRoot): ?string
+    private static function gitlinks(string $projectRoot): ?string
     {
-        return self::trackedHash($projectRoot, 'composer.lock');
-    }
+        $entries = self::gitlinkEntries($projectRoot);
 
-    private static function packageLockHash(string $projectRoot): ?string
-    {
-        $parts = [];
-
-        foreach (self::PACKAGE_LOCK_NAMES as $name) {
-            if (! self::isTrackedByGit($projectRoot, $name)) {
-                continue;
-            }
-
-            $hash = self::lockfileHash($projectRoot.'/'.$name, $name);
-
-            if ($hash !== null) {
-                $parts[] = $name.':'.$hash;
-            }
-        }
-
-        return $parts === [] ? null : hash('xxh128', implode("\n", $parts));
+        return $entries === [] ? null : hash('xxh128', serialize($entries));
     }
 
     private static function lockfileHash(string $path, string $name): ?string
@@ -267,51 +276,13 @@ final readonly class Fingerprint
         return hash('xxh128', $contents);
     }
 
-    private static function trackedHash(string $projectRoot, string $relativePath): ?string
-    {
-        if (! self::isTrackedByGit($projectRoot, $relativePath)) {
-            return null;
-        }
-
-        return self::hashIfExists($projectRoot.'/'.$relativePath);
-    }
-
     private static function isTrackedByGit(string $projectRoot, string $relativePath): bool
     {
-        if (! is_file($projectRoot.'/'.$relativePath)) {
-            return false;
-        }
-
-        static $cache = [];
-
-        $key = $projectRoot."\0".$relativePath;
-
-        if (isset($cache[$key])) {
-            return $cache[$key];
-        }
-
         if (GitRepository::locate($projectRoot) === null) {
-            return $cache[$key] = true;
+            return true;
         }
 
-        $finder = (new Finder)
-            ->in($projectRoot)
-            ->depth('== 0')
-            ->name($relativePath)
-            ->ignoreVCSIgnored(true);
-
-        return $cache[$key] = $finder->hasResults();
-    }
-
-    private static function contentHashOrNull(string $path): ?string
-    {
-        if (! is_file($path)) {
-            return null;
-        }
-
-        $hash = ContentHash::of($path);
-
-        return $hash === false ? null : $hash;
+        return new Git($projectRoot)->succeeds(['ls-files', '--error-unmatch', '--', $relativePath]);
     }
 
     private static function hashIfExists(string $path): ?string

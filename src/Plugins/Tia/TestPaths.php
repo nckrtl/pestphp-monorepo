@@ -92,6 +92,14 @@ final readonly class TestPaths
             return false;
         }
 
+        return $this->contains($relativePath);
+    }
+
+    public function contains(string $relativePath): bool
+    {
+        if (in_array($relativePath, $this->files, true)) {
+            return true;
+        }
         foreach ($this->directories as $dir) {
             if ($dir === '') {
                 continue;

@@ -209,6 +209,9 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
     /** @var array<int, string> */
     private array $originalArguments = [];
 
+    /** @var array<int, string> */
+    private array $fingerprintArguments = [];
+
     private ?string $driftLabel = null;
 
     private ?string $driftDetails = null;
@@ -465,6 +468,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
      */
     public function handleArguments(array $arguments): array
     {
+        $this->fingerprintArguments = $arguments;
         if ($this->hasArgument(self::BASELINE_PATH_OPTION, $arguments)) {
             $this->output->writeln(Storage::tempDir(TestSuite::getInstance()->rootPath));
 
@@ -638,7 +642,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $changedFiles = new ChangedFiles($projectRoot);
         $currentSha = $changedFiles->currentSha();
 
-        $currentFingerprint = Fingerprint::compute($projectRoot);
+        $currentFingerprint = Fingerprint::compute($projectRoot, $this->fingerprintArguments);
 
         if ($this->structuralFingerprintShifted($currentFingerprint)) {
             $this->renderBadge('WARN', 'Project files changed during the run — discarding recorded edges.');
@@ -656,6 +660,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $this->branch,
             $changedFiles->snapshotTree($changedFiles->since($currentSha) ?? []),
         );
+        $graph->addPreTestFiles($recorder->preTestFiles());
         $graph->replaceEdges($perTest, keepExisting: $this->piggybackCoverage);
         $graph->replaceTestTables($perTestTables);
         $graph->replaceTestInertiaComponents($perTestInertia);
@@ -724,7 +729,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $changedFiles = new ChangedFiles($projectRoot);
         $currentSha = $changedFiles->currentSha();
 
-        $currentFingerprint = Fingerprint::compute($projectRoot);
+        $currentFingerprint = Fingerprint::compute($projectRoot, $this->fingerprintArguments);
 
         if ($this->structuralFingerprintShifted($currentFingerprint)) {
             $this->renderBadge('WARN', 'Project files changed during the run — discarding recorded edges.');
@@ -745,7 +750,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $changedFiles->snapshotTree($changedFiles->since($currentSha) ?? []),
         );
 
-        [$finalised, $finalisedTables, $finalisedInertia] = $this->consumePartials($partialKeys);
+        [$finalised, $finalisedTables, $finalisedInertia, $preTestFiles] = $this->consumePartials($partialKeys);
 
         if ($finalised === []) {
             if ($this->replayRan) {
@@ -760,6 +765,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return $exitCode;
         }
 
+        $graph->addPreTestFiles($preTestFiles);
         $graph->replaceEdges($finalised, keepExisting: $this->piggybackCoverage);
         $graph->replaceTestTables($finalisedTables);
         $graph->replaceTestInertiaComponents($finalisedInertia);
@@ -869,7 +875,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             Parallel::setGlobal(self::BASE_GLOBAL, $this->testBase);
         }
 
-        $fingerprint = Fingerprint::compute($projectRoot);
+        $fingerprint = Fingerprint::compute($projectRoot, $this->fingerprintArguments);
         $this->startFingerprint = $fingerprint;
 
         if ($forceRebuild && $this->canRebuildGraph()) {
@@ -1096,7 +1102,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         }
 
         if ($this->testBase !== null && $this->testBase !== 'graph'
-            && Fingerprint::touchesInputs($changedFiles->since($this->testBase, unfiltered: true) ?? [])) {
+            && Fingerprint::touchesInputs($changed ?? [], $projectRoot, $this->fingerprintArguments, $this->testBase)) {
             $this->renderBadge('WARN', 'Commit delta changes a fingerprint input — recording the full suite.');
 
             return $this->enterRecordMode($arguments);
@@ -1414,6 +1420,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             'files' => $perTestFiles,
             'tables' => $perTestTables,
             'inertia' => $perTestInertiaComponents,
+            'pre_test_files' => $this->recorder->preTestFiles(),
         ], JSON_UNESCAPED_SLASHES);
 
         if ($json === false) {
@@ -1595,11 +1602,12 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
     /**
      * @param  list<string>  $partialKeys
-     * @return array{0: array<string, list<string>>, 1: array<string, list<string>>, 2: array<string, list<string>>}
+     * @return array{0: array<string, list<string>>, 1: array<string, list<string>>, 2: array<string, list<string>>, 3: list<string>}
      */
     private function consumePartials(array $partialKeys): array
     {
         $merged = ['files' => [], 'tables' => [], 'inertia' => []];
+        $preTestFiles = [];
 
         foreach ($partialKeys as $key) {
             $data = $this->readPartial($key);
@@ -1609,6 +1617,8 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
                 continue;
             }
+
+            $preTestFiles = [...$preTestFiles, ...$data['pre_test_files']];
 
             foreach (['files', 'tables', 'inertia'] as $section) {
                 foreach ($data[$section] as $testFile => $values) {
@@ -1627,11 +1637,12 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             array_map(array_keys(...), $merged['files']),
             array_map(array_keys(...), $merged['tables']),
             array_map(array_keys(...), $merged['inertia']),
+            array_values(array_unique($preTestFiles)),
         ];
     }
 
     /**
-     * @return array{files: array<string, array<int, string>>, tables: array<string, array<int, string>>, inertia: array<string, array<int, string>>}|null
+     * @return array{files: array<string, array<int, string>>, tables: array<string, array<int, string>>, inertia: array<string, array<int, string>>, pre_test_files: list<string>}|null
      */
     private function readPartial(string $key): ?array
     {
@@ -1655,6 +1666,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             'files' => $this->cleanPartialSection($filesSource),
             'tables' => $this->cleanPartialSection($tablesSource),
             'inertia' => $this->cleanPartialSection($inertiaSource),
+            'pre_test_files' => array_values(array_filter(is_array($data['pre_test_files'] ?? null) ? $data['pre_test_files'] : [], is_string(...))),
         ];
     }
 
