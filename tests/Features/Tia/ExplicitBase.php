@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Pest\Plugins\Tia;
+use Pest\Plugins\Tia\Fingerprint;
 use Pest\Plugins\Tia\Recorder;
 use Tests\Fixtures\Tia\Project;
 
@@ -383,7 +384,9 @@ test('the actual phpunit config is a fingerprint input', function (string $confi
     $this->project->write($config, str_replace('colors="true"', 'colors="false"', file_get_contents($this->project->path($config))));
     $this->project->git()->commit('Change loaded configuration');
     $warm = ($this->run)($arguments);
-    expect($warm->exitCode)->toBe(0, $warm->describe())->and($warm->tally())->toContain('6 passed');
+    expect($warm->exitCode)->toBe(0, $warm->describe())
+        ->and($warm->tally())->toContain('6 passed')
+        ->and($warm->output)->toContain('PHPUnit config changed');
 
     $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
 
@@ -435,14 +438,20 @@ test('changed submodule pointers widen explicit selection', function (): void {
     $this->project->git()->commit('Add dependency submodule');
     $record = ($this->run)(['--fresh']);
     expect($record->exitCode)->toBe(0, $record->describe());
+    $before = $this->project->graph()['fingerprint'];
+    expect($before['structural']['submodules'])->not->toBeNull()
+        ->and($before['structural'])->not->toHaveKey('gitlinks');
     $start = $this->project->git()->sha();
     $module->git()->commit('New dependency version');
     $sha = $module->git()->sha();
     $this->project->git()->run(['-C', 'dependency', 'fetch', 'origin']);
     $this->project->git()->run(['-C', 'dependency', 'checkout', $sha]);
     $this->project->git()->commit('Update dependency pointer');
+    $after = Fingerprint::compute($this->project->path());
+    expect(Fingerprint::structuralDrift($before, $after))->toBe(['submodules']);
     $warm = ($this->run)([]);
-    expect($warm->exitCode)->toBe(0, $warm->describe());
+    expect($warm->exitCode)->toBe(0, $warm->describe())
+        ->and($warm->output)->toContain('Submodule pointer changed');
 
     $result = ($this->run)(['--tia-base='.$start]);
 
@@ -496,3 +505,45 @@ test('an ignored active config is still fingerprinted', function (): void {
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($result->tally())->toContain('6 passed');
 })->skipOnWindows();
+
+test('deleting a discovered config widens selection after a warm run', function (array $arguments): void {
+    $xml = file_get_contents($this->project->path('phpunit.xml'));
+    $this->project->write('phpunit.xml', str_replace('</phpunit>', '<php><env name="FIXTURE_CONFIG" value="original"/></php></phpunit>', $xml));
+    $this->project->write('phpunit.xml.dist', str_replace('</phpunit>', '<php><env name="FIXTURE_CONFIG" value="fallback"/></php></phpunit>', $xml));
+    $this->project->write('tests/Unit/ConfigTest.php', "<?php test('config is correct', fn () => expect(getenv('FIXTURE_CONFIG'))->toBe('original'));\n");
+    $this->project->git()->commit('Track both discovered configs');
+    $start = $this->project->git()->sha();
+    $record = ($this->run)(['--fresh', ...$arguments]);
+    expect($record->exitCode)->toBe(0, $record->describe());
+    unlink($this->project->path('phpunit.xml'));
+    $this->project->git()->commit('Remove higher priority config');
+    $warm = ($this->run)($arguments);
+    expect($warm->exitCode)->toBe(1, $warm->describe());
+
+    $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
+    $full = $this->project->pest('--no-tia', ...$arguments);
+
+    expect($result->exitCode)->toBe(1, $result->describe())
+        ->and($result->tally())->toContain('1 failed', '6 passed')
+        ->and($full->exitCode)->toBe(1, $full->describe());
+})->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
+
+test('a configured project bootstrap outside test paths widens selection', function (array $arguments): void {
+    $xml = file_get_contents($this->project->path('phpunit.xml'));
+    $this->project->write('phpunit.xml', str_replace('bootstrap="vendor/autoload.php"', 'bootstrap="bootstrap/testing.php"', $xml));
+    $this->project->write('bootstrap/testing.php', "<?php require __DIR__.'/../vendor/autoload.php'; define('FIXTURE_INPUT', true);\n");
+    $this->project->write('tests/Unit/InputTest.php', "<?php test('bootstrap is correct', fn () => expect(FIXTURE_INPUT)->toBeTrue());\n");
+    $this->project->git()->commit('Configure project bootstrap');
+    $start = $this->project->git()->sha();
+    $record = ($this->run)(['--fresh', ...$arguments]);
+    expect($record->exitCode)->toBe(0, $record->describe());
+    $this->project->write('bootstrap/testing.php', "<?php require __DIR__.'/../vendor/autoload.php'; define('FIXTURE_INPUT', false);\n");
+
+    $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
+    $full = $this->project->pest('--no-tia', ...$arguments);
+
+    expect($result->exitCode)->toBe(1, $result->describe())
+        ->and($result->tally())->toContain('1 failed', '6 passed')
+        ->and($this->project->graph()['pre_test_files'])->toContain('bootstrap/testing.php')
+        ->and($full->exitCode)->toBe(1, $full->describe());
+})->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();

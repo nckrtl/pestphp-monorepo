@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pest\Plugins\Tia;
 
 use Pest\TestSuite;
+use PHPUnit\TextUI\Configuration\Registry;
 use ReflectionClass;
 
 /**
@@ -267,13 +268,16 @@ final class Recorder
         $testRoot = $root.trim($suite->testPath, '/').'/';
         $paths = TestPaths::fromProjectRoot($suite->rootPath);
         $testFiles = array_fill_keys($suite->tests->getFilenames(), true);
+        $configuration = Registry::get();
+        $bootstrap = $configuration->hasBootstrap() ? realpath($configuration->bootstrap()) : false;
         $files = [];
         foreach (get_included_files() as $file) {
             if (! str_starts_with($file, $root) || isset($testFiles[$file])) {
                 continue;
             }
             $relative = substr($file, strlen($root));
-            if (str_starts_with($file, $testRoot) || $paths->contains($relative)) {
+            if (str_starts_with($file, $testRoot) || $paths->contains($relative)
+                || ($file === $bootstrap && ! str_starts_with($relative, 'vendor/'))) {
                 $files[] = $relative;
             }
         }

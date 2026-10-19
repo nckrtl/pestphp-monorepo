@@ -2236,8 +2236,8 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         static $labels = [
             'composer_lock' => 'composer.lock',
             'composer_json' => 'composer.json',
-            'phpunit_xml' => 'phpunit.xml',
-            'phpunit_xml_dist' => 'phpunit.xml.dist',
+            'phpunit_config' => 'PHPUnit config',
+            'submodules' => 'Submodule pointer',
             'vite_config' => 'vite.config',
             'package_json' => 'package.json',
             'package_lock' => 'Node lockfile',
