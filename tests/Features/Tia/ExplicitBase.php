@@ -235,6 +235,26 @@ test('a commit delta containing a fingerprint input records the full suite after
         ->and($result->replayed())->toBe(0, $result->describe());
 })->with(['composer.lock', 'phpunit.xml', 'phpunit.xml.dist', 'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb', 'tsconfig.json', 'tsconfig.app.json', 'jsconfig.json', 'vite.config.ts'])->skipOnWindows();
 
+test('a tracked fingerprint input cannot be hidden by gitignore', function (): void {
+    $this->project->write('composer.lock', '{}');
+    $this->project->git()->commit('Track the lockfile');
+    $this->project->write('.gitignore', file_get_contents($this->project->path('.gitignore'))."\n/composer.lock\n");
+    $this->project->git()->commit('Ignore untracked lockfiles');
+    $this->project->seed('master');
+    $start = $this->project->git()->sha();
+    $this->project->git()->switchTo('implementation', new: true);
+    $this->project->write('composer.lock', "{}\n");
+    $this->project->git()->commit('Change the tracked lockfile');
+    $warm = ($this->run)([]);
+    expect($warm->exitCode)->toBe(0, $warm->describe());
+
+    $result = ($this->run)(['--tia-base='.$start]);
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->tally())->toContain('6 passed')
+        ->and($result->replayed())->toBe(0, $result->describe());
+})->skipOnWindows();
+
 test('a bootstrap change widens explicit selection', function (string $base): void {
     $this->project->seed('master');
     $start = $this->project->git()->sha();

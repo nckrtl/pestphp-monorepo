@@ -101,7 +101,7 @@ final readonly class ChangedFiles
     /**
      * @return array<int, string>|null `null` when git is unavailable, or when
      */
-    public function since(?string $sha, bool $includeBehaviourallyUnchanged = false): ?array
+    public function since(?string $sha, bool $unfiltered = false): ?array
     {
         $files = [];
 
@@ -124,9 +124,9 @@ final readonly class ChangedFiles
             $unique[$file] = true;
         }
 
-        $candidates = array_keys($this->filterIgnored($unique));
+        $candidates = array_keys($unfiltered ? $unique : $this->filterIgnored($unique));
 
-        if ($sha !== null && $sha !== '' && ! $includeBehaviourallyUnchanged) {
+        if ($sha !== null && $sha !== '' && ! $unfiltered) {
             return $this->filterBehaviourallyUnchanged($candidates, $sha);
         }
 

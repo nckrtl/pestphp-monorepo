@@ -1096,7 +1096,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         }
 
         if ($this->testBase !== null && $this->testBase !== 'graph'
-            && Fingerprint::touchesInputs($changedFiles->since($this->testBase, includeBehaviourallyUnchanged: true) ?? [])) {
+            && Fingerprint::touchesInputs($changedFiles->since($this->testBase, unfiltered: true) ?? [])) {
             $this->renderBadge('WARN', 'Commit delta changes a fingerprint input — recording the full suite.');
 
             return $this->enterRecordMode($arguments);
