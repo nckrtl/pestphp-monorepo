@@ -94,9 +94,7 @@ final class Recorder
             return;
         }
 
-        if ($this->currentTestFile !== null) {
-            return;
-        }
+        $this->endTest();
 
         $file = $this->resolveTestFile($className, $fallbackFile);
 

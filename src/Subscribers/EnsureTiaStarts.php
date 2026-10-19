@@ -6,17 +6,17 @@ namespace Pest\Subscribers;
 
 use Pest\Plugins\Tia\Recorder;
 use PHPUnit\Event\Code\TestMethod;
-use PHPUnit\Event\Test\Prepared;
-use PHPUnit\Event\Test\PreparedSubscriber;
+use PHPUnit\Event\Test\PreparationStarted;
+use PHPUnit\Event\Test\PreparationStartedSubscriber;
 
 /**
  * @internal
  */
-final readonly class EnsureTiaStarts implements PreparedSubscriber
+final readonly class EnsureTiaStarts implements PreparationStartedSubscriber
 {
     public function __construct(private Recorder $recorder) {}
 
-    public function notify(Prepared $event): void
+    public function notify(PreparationStarted $event): void
     {
         if (! $this->recorder->isActive()) {
             return;

@@ -227,10 +227,6 @@ trait Testable
 
         parent::setUp();
 
-        if ($recorder->isActive()) {
-            $recorder->beginTest($this::class, $this->name(), self::$__filename);
-        }
-
         Collectors::armAll($recorder);
 
         $beforeEach = TestSuite::getInstance()->beforeEach->get(self::$__filename)[1];
