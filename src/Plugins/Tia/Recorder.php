@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Pest\Plugins\Tia;
 
 use Pest\TestSuite;
+use PHPUnit\TextUI\Configuration\File;
 use PHPUnit\TextUI\Configuration\Registry;
 use ReflectionClass;
+use SebastianBergmann\FileIterator\Facade;
 
 /**
  * @internal
@@ -90,8 +92,6 @@ final class Recorder
         if (! $this->active) {
             return;
         }
-
-        $this->preTestFiles ??= $this->capturePreTestFiles();
 
         if ($this->captureCoverage && ! $this->driverAvailable()) {
             return;
@@ -260,24 +260,31 @@ final class Recorder
         $this->perTestInertiaComponents[$this->currentTestFile][$component] = true;
     }
 
+    public function recordPreTestFiles(): void
+    {
+        if ($this->active) {
+            $this->preTestFiles ??= $this->capturePreTestFiles();
+        }
+    }
+
     /** @return list<string> */
     private function capturePreTestFiles(): array
     {
         $suite = TestSuite::getInstance();
         $root = rtrim($suite->rootPath, '/').'/';
-        $testRoot = $root.trim($suite->testPath, '/').'/';
-        $paths = TestPaths::fromProjectRoot($suite->rootPath);
-        $testFiles = array_fill_keys($suite->tests->getFilenames(), true);
-        $configuration = Registry::get();
-        $bootstrapPaths = array_values($configuration->bootstrapForTestSuite());
-        if ($configuration->hasBootstrap()) {
-            $bootstrapPaths[] = $configuration->bootstrap();
-        }
-        $bootstraps = [];
-        foreach ($bootstrapPaths as $path) {
-            $path = realpath($path);
-            if ($path !== false) {
-                $bootstraps[$path] = true;
+        $testFiles = [];
+        foreach (Registry::get()->testSuite() as $configuredSuite) {
+            $excluded = array_map(static fn (File $file): string => $file->path(), $configuredSuite->exclude()->asArray());
+            foreach ($configuredSuite->directories() as $directory) {
+                foreach ((new Facade)->getFilesAsArray($directory->path(), $directory->suffix(), $directory->prefix(), $excluded) as $file) {
+                    $testFiles[$file] = true;
+                }
+            }
+            foreach ($configuredSuite->files() as $file) {
+                $resolved = realpath($file->path());
+                if ($resolved !== false) {
+                    $testFiles[$resolved] = true;
+                }
             }
         }
         $files = [];
@@ -286,8 +293,7 @@ final class Recorder
                 continue;
             }
             $relative = substr($file, strlen($root));
-            if (str_starts_with($file, $testRoot) || $paths->contains($relative)
-                || (isset($bootstraps[$file]) && ! str_starts_with($relative, 'vendor/'))) {
+            if (! str_starts_with($relative, 'vendor/')) {
                 $files[] = $relative;
             }
         }

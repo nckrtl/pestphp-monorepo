@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pest\Subscribers;
 
+use Pest\Plugins\Tia\Recorder;
 use Pest\Plugins\Tia\ResultCollector;
 use PHPUnit\Event\Code\TestMethod;
 use PHPUnit\Event\Test\PreparationStarted;
@@ -14,10 +15,12 @@ use PHPUnit\Event\Test\PreparationStartedSubscriber;
  */
 final readonly class EnsureTiaResultsAreCollected implements PreparationStartedSubscriber
 {
-    public function __construct(private ResultCollector $collector) {}
+    public function __construct(private ResultCollector $collector, private Recorder $recorder) {}
 
     public function notify(PreparationStarted $event): void
     {
+        $this->recorder->recordPreTestFiles();
+
         $test = $event->test();
 
         if ($test instanceof TestMethod) {

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Pest\Plugins\Tia\Recorder;
 use Pest\Plugins\Tia\ResultCollector;
 use Pest\Subscribers\EnsureTiaAssertionsAreRecordedOnFinished;
 use Pest\Subscribers\EnsureTiaResultsAreCollected;
@@ -68,7 +69,7 @@ function tiaResultKeyTelemetryInfo(): Info
 
 it('keys a result per dataset row rather than per method', function (): void {
     $collector = new ResultCollector;
-    $subscriber = new EnsureTiaResultsAreCollected($collector);
+    $subscriber = new EnsureTiaResultsAreCollected($collector, new Recorder);
 
     $subscriber->notify(new PreparationStarted(tiaResultKeyTelemetryInfo(), tiaResultKeyTestMethod('opp')));
     $collector->testPassed();
@@ -87,7 +88,7 @@ it('keys a result per dataset row rather than per method', function (): void {
 it('records assertions against the same per-dataset key', function (): void {
     $collector = new ResultCollector;
 
-    new EnsureTiaResultsAreCollected($collector)->notify(
+    new EnsureTiaResultsAreCollected($collector, new Recorder)->notify(
         new PreparationStarted(tiaResultKeyTelemetryInfo(), tiaResultKeyTestMethod('opp')),
     );
     $collector->testPassed();
@@ -102,7 +103,7 @@ it('records assertions against the same per-dataset key', function (): void {
 it('leaves a test without a dataset keyed by class and method', function (): void {
     $collector = new ResultCollector;
 
-    new EnsureTiaResultsAreCollected($collector)->notify(
+    new EnsureTiaResultsAreCollected($collector, new Recorder)->notify(
         new PreparationStarted(tiaResultKeyTelemetryInfo(), tiaResultKeyTestMethod(null)),
     );
     $collector->testPassed();

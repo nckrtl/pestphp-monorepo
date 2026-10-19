@@ -559,3 +559,65 @@ test('a configured project bootstrap outside test paths widens selection', funct
     'main parallel' => [Project::SEQUENTIAL_AND_PARALLEL['parallel'][0], 'main'],
     'suite' => [[], 'suite'],
 ])->skipOnWindows();
+
+test('a recorded baseline never makes configured test files startup inputs', function (string $selection, string $changed, int $count, array $arguments): void {
+    $xml = file_get_contents($this->project->path('phpunit.xml'));
+    $this->project->write('phpunit.xml', str_replace('</testsuites>', '<testsuite name="extra"><file>spec/Explicit.php</file><directory suffix=".spec.php" prefix="Check">spec</directory></testsuite></testsuites>', $xml));
+    $this->project->write('spec/Explicit.php', "<?php test('explicit test', fn () => expect(1)->toBe(1));\n");
+    $this->project->write('spec/CheckOther.spec.php', "<?php test('suffix test', fn () => expect(1)->toBe(1));\n");
+    $greeter = file_get_contents($this->project->path('tests/Unit/GreeterTest.php'));
+    $this->project->write('tests/Unit/GreeterTest.php', str_replace('});', "})->group('baseline');", $greeter));
+    $this->project->git()->commit('Configure test files');
+    if ($selection !== 'all') {
+        $record = ($this->run)(['--fresh', ...$arguments]);
+        expect($record->exitCode)->toBe(0, $record->describe());
+    }
+    if ($selection === 'tia') {
+        $greeter = file_get_contents($this->project->path('tests/Unit/GreeterTest.php'));
+        $this->project->write('tests/Unit/GreeterTest.php', str_replace("greet('Nuno')", "greet('Nuno'.'')", $greeter));
+        $this->project->git()->commit('Baseline test change');
+    }
+    $selectionArguments = match ($selection) {
+        'tia' => ['--tia-base=graph'],
+        'filter' => ['--fresh', '--filter=greets'],
+        'group' => ['--fresh', '--group=baseline'],
+        'path' => ['--fresh', 'tests/Unit/GreeterTest.php'],
+        default => ['--fresh'],
+    };
+    $baseline = ($this->run)([...$selectionArguments, ...$arguments]);
+    expect($baseline->exitCode)->toBe(0, $baseline->describe())
+        ->and($baseline->tally())->toContain($selection === 'all' ? '8 passed' : '2 passed');
+    $start = $this->project->git()->sha();
+    $test = file_get_contents($this->project->path($changed));
+    $this->project->write($changed, str_replace('->toBe(', '->toBe(0 + ', $test));
+
+    $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->tally())->toContain($count.' passed')
+        ->and($result->affected())->toBe($count, $result->describe())
+        ->and(array_intersect(array_keys($this->project->graph()['edges']), $this->project->graph()['pre_test_files']))->toBeEmpty();
+})->with(['all', 'tia', 'filter', 'group', 'path'])->with([
+    'directory' => ['tests/Unit/CalculatorTest.php', 2],
+    'explicit file' => ['spec/Explicit.php', 1],
+    'custom suffix' => ['spec/CheckOther.spec.php', 1],
+])->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
+
+test('a helper required by a test file remains a startup input', function (array $arguments): void {
+    $this->project->write('support/shared.php', "<?php define('STARTUP_HELPER', true);\n");
+    $test = file_get_contents($this->project->path('tests/Unit/CalculatorTest.php'));
+    $test = str_replace('use Fixture\\App\\Calculator;', "use Fixture\\App\\Calculator;\nrequire __DIR__.'/../../support/shared.php';", $test);
+    $this->project->write('tests/Unit/CalculatorTest.php', str_replace('    expect(', "    expect(STARTUP_HELPER)->toBeTrue();\n    expect(", $test));
+    $this->project->git()->commit('Require startup helper from a test file');
+    $baseline = ($this->run)(['--fresh', ...$arguments]);
+    expect($baseline->exitCode)->toBe(0, $baseline->describe());
+    $start = $this->project->git()->sha();
+    $this->project->write('support/shared.php', "<?php define('STARTUP_HELPER', false);\n");
+
+    $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
+
+    expect($result->exitCode)->toBe(1, $result->describe())
+        ->and($result->tally())->toContain('2 failed', '4 passed')
+        ->and($result->affected())->toBe(6, $result->describe())
+        ->and($this->project->graph()['pre_test_files'])->toContain('support/shared.php');
+})->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
