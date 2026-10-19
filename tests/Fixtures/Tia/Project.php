@@ -428,7 +428,7 @@ final class Project
         self::mirror($pestRoot.'/composer.json', $pest.'/composer.json');
 
         file_put_contents($directory.'/vendor/autoload.php', sprintf(
-            "<?php\n\n\$loader = require %s;\n\$loader->addPsr4('Pest\\\\', __DIR__.'/pestphp/pest/src', true);\n\$loader->addPsr4('Fixture\\\\App\\\\', dirname(__DIR__).'/app');\n\$loader->addClassMap(['TiaFixture\\\\FixtureProvider' => dirname(__DIR__).'/app/Providers/FixtureProvider.php']);\n\nreturn \$loader;\n",
+            "<?php\n\n\$loader = require %s;\n\$loader->addPsr4('Pest\\\\', __DIR__.'/pestphp/pest/src', true);\n\nreturn \$loader;\n",
             var_export($pestRoot.'/vendor/autoload.php', true),
         ));
 

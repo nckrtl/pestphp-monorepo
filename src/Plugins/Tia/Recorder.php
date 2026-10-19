@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace Pest\Plugins\Tia;
 
 use Pest\TestSuite;
-use PHPUnit\TextUI\Configuration\File;
-use PHPUnit\TextUI\Configuration\Registry;
 use ReflectionClass;
-use SebastianBergmann\FileIterator\Facade;
 
 /**
  * @internal
@@ -262,43 +259,11 @@ final class Recorder
 
     public function recordPreTestFiles(): void
     {
-        if ($this->active) {
-            $this->preTestFiles ??= $this->capturePreTestFiles();
-        }
-    }
-
-    /** @return list<string> */
-    private function capturePreTestFiles(): array
-    {
         $suite = TestSuite::getInstance();
-        $root = rtrim($suite->rootPath, '/').'/';
-        $testFiles = [];
-        foreach (Registry::get()->testSuite() as $configuredSuite) {
-            $excluded = array_map(static fn (File $file): string => $file->path(), $configuredSuite->exclude()->asArray());
-            foreach ($configuredSuite->directories() as $directory) {
-                foreach ((new Facade)->getFilesAsArray($directory->path(), $directory->suffix(), $directory->prefix(), $excluded) as $file) {
-                    $testFiles[$file] = true;
-                }
-            }
-            foreach ($configuredSuite->files() as $file) {
-                $resolved = realpath($file->path());
-                if ($resolved !== false) {
-                    $testFiles[$resolved] = true;
-                }
-            }
-        }
-        $files = [];
-        foreach (get_included_files() as $file) {
-            if (! str_starts_with($file, $root) || isset($testFiles[$file])) {
-                continue;
-            }
-            $relative = substr($file, strlen($root));
-            if (! str_starts_with($relative, 'vendor/')) {
-                $files[] = $relative;
-            }
-        }
-
-        return $files;
+        $this->preTestFiles = TestFiles::fromProjectRoot($suite->rootPath)->startupInputs(
+            get_included_files(),
+            $suite->tests->getDefinedFilenames(),
+        );
     }
 
     /** @return list<string> */

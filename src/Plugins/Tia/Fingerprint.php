@@ -15,7 +15,7 @@ use PHPUnit\TextUI\CliArguments\XmlConfigurationFileFinder;
  */
 final readonly class Fingerprint
 {
-    private const int SCHEMA_VERSION = 24;
+    private const int SCHEMA_VERSION = 25;
 
     private const array JS_CONFIG_NAMES = ['tsconfig.json', 'tsconfig.app.json', 'jsconfig.json'];
 

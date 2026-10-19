@@ -765,7 +765,8 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return $exitCode;
         }
 
-        $graph->addPreTestFiles($preTestFiles);
+        $this->recorder->recordPreTestFiles();
+        $graph->addPreTestFiles([...$preTestFiles, ...$this->recorder->preTestFiles()]);
         $graph->replaceEdges($finalised, keepExisting: $this->piggybackCoverage);
         $graph->replaceTestTables($finalisedTables);
         $graph->replaceTestInertiaComponents($finalisedInertia);

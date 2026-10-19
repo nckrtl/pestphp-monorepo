@@ -2023,13 +2023,13 @@
   ✓ fromMigrationSource() → it does not leak int keys for numeric table names
   ✓ fromMigrationSource() → it extracts tables from DB::table calls
 
-   PASS  Tests\Unit\Plugins\Tia\TestPaths
-  ✓ isTestFile() → it matches a standard test file under a configured directory
-  ✓ isTestFile() → it does not match a non-test file that shares the directory
-  ✓ isTestFile() → it does not match files outside the configured directories
-  ✓ isTestFile() → it matches an explicitly listed file
-  ✓ isTestFile() → it honours a bare .php suffix
-  ✓ isTestFile() → it does not require a dot before the suffix
+   PASS  Tests\Unit\Plugins\Tia\TestFiles
+  ✓ it does not confuse a matching suite helper with a file defining tests
+  ✓ it keeps configured bootstraps outside the test directories
+  ✓ it does not include a configured bootstrap from vendor
+  ✓ it does not include app files or files outside the project
+  ✓ it only includes support files that were loaded
+  ✓ it uses exact suite candidates for new test discovery
 
    PASS  Tests\Unit\Plugins\Tia\ViteDepsHelper
   ✓ it strips JSONC down to something JSON.parse accepts with ('plain-object')

@@ -460,7 +460,7 @@ final class Graph
      */
     private function applyTestFileChanges(array $nonMigrationPaths, array &$affectedSet): void
     {
-        $testPaths = TestPaths::fromProjectRoot($this->projectRoot);
+        $testFiles = TestFiles::fromProjectRoot($this->projectRoot);
         if (array_intersect($this->preTestFiles, $nonMigrationPaths) !== []) {
             foreach (array_keys($this->edges) as $testFile) {
                 $affectedSet[$testFile] = true;
@@ -468,10 +468,10 @@ final class Graph
         }
 
         foreach ($nonMigrationPaths as $rel) {
-            if (isset($affectedSet[$rel])) {
+            if (isset($affectedSet[$rel]) || in_array($rel, $this->preTestFiles, true)) {
                 continue;
             }
-            if (! $testPaths->isTestFile($rel)) {
+            if (! $testFiles->isCandidate($rel)) {
                 continue;
             }
             if (! is_file($this->projectRoot.'/'.$rel)) {
