@@ -603,7 +603,7 @@ test('a recorded baseline never makes configured test files startup inputs', fun
     'custom suffix' => ['spec/CheckOther.spec.php', 1],
 ])->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
-test('test directory helpers loaded early or late widen in every process', function (string $timing, string $position, array $arguments): void {
+test('test directory helpers loaded early or late select only the consuming file', function (string $timing, string $position, array $arguments): void {
     $this->project->write('tests/Support/shared.php', "<?php define('STARTUP_HELPER', true);\n");
     $this->project->write('runtime/.gitignore', "*\n");
     $this->project->write('runtime/assert-late', 'baseline');
@@ -635,12 +635,14 @@ test('test directory helpers loaded early or late widen in every process', funct
     $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
 
     expect($result->exitCode)->toBe(1, $result->describe())
-        ->and($result->tally())->toContain('1 failed', '12 passed')
-        ->and($result->affected())->toBe(13, $result->describe())
-        ->and($inputs)->toContain('tests/Support/shared.php');
+        ->and($result->tally())->toContain('1 failed')
+        ->and($result->affected())->toBe(1, $result->describe())
+        ->and($inputs)->not->toContain('tests/Support/shared.php');
+    $graph = $this->project->graph();
+    expect($graph['edges'][$file])->toContain(array_search('tests/Support/shared.php', $graph['files'], true));
 })->with(['discovery', 'beforeAll'])->with(['early', 'late'])->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
-test('php suffix suites keep loaded support files as startup inputs', function (string $changed, array $arguments): void {
+test('php suffix suites keep harness inputs global and helpers on edges', function (string $changed, array $arguments): void {
     $xml = file_get_contents($this->project->path('phpunit.xml'));
     $xml = str_replace('suffix="Test.php"', 'suffix=".php"', $xml);
     $this->project->write('phpunit.xml', str_replace('bootstrap="vendor/autoload.php"', 'bootstrap="tests/bootstrap.php"', $xml));
@@ -648,7 +650,7 @@ test('php suffix suites keep loaded support files as startup inputs', function (
     $this->project->write('tests/Helpers.php', "<?php function startupHelper(): int { return 1; }\n");
     $this->project->write('tests/TestCase.php', "<?php abstract class StartupTestCase extends \\PHPUnit\\Framework\\TestCase {}\n");
     $pest = file_get_contents($this->project->path('tests/Pest.php'));
-    $this->project->write('tests/Pest.php', $pest."\nrequire_once __DIR__.'/TestCase.php';\n");
+    $this->project->write('tests/Pest.php', $pest."\nrequire_once __DIR__.'/TestCase.php'; require_once __DIR__.'/Helpers.php';\n");
     $this->project->git()->commit('Configure php suffix support');
     $baseline = ($this->run)(['--fresh', ...$arguments]);
     expect($baseline->exitCode)->toBe(0, $baseline->describe());
@@ -659,7 +661,7 @@ test('php suffix suites keep loaded support files as startup inputs', function (
 
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($result->affected())->toBe(6, $result->describe())
-        ->and($this->project->graph()['pre_test_files'])->toContain($changed);
+        ->and(in_array($changed, $this->project->graph()['pre_test_files'], true))->toBe($changed !== 'tests/Helpers.php');
     if ($arguments !== []) {
         expect(json_decode(file_get_contents($this->project->graphDir().'/affected.json'), true))->not->toContain($changed);
     }
@@ -731,7 +733,9 @@ test('filtered parallel recordings retain discovery helpers from excluded tests'
     $baseline = ($this->run)(['--tia-base=graph', ...$arguments]);
     expect($baseline->exitCode)->toBe(0, $baseline->describe())
         ->and($baseline->affected())->toBe(2, $baseline->describe())
-        ->and($this->project->graph()['pre_test_files'])->toContain('tests/Support/excluded.php');
+        ->and($this->project->graph()['pre_test_files'])->not->toContain('tests/Support/excluded.php');
+    $graph = $this->project->graph();
+    expect($graph['edges']['tests/Unit/CalculatorTest.php'])->toContain(array_search('tests/Support/excluded.php', $graph['files'], true));
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
 test('Pest test root support used only by the bootstrap widens split suites', function (array $arguments): void {
@@ -753,7 +757,7 @@ test('Pest test root support used only by the bootstrap widens split suites', fu
     expect($result->exitCode)->toBe(1, $result->describe())
         ->and($result->tally())->toContain('1 failed', '6 passed')
         ->and($result->affected())->toBe(7, $result->describe())
-        ->and($this->project->graph()['pre_test_files'])->toContain('tests/Support/BootstrapEnvironment.php');
+        ->and($this->project->graph()['pre_test_files'])->not->toContain('tests/Support/BootstrapEnvironment.php');
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
 test('complete recordings discard startup inputs that now define tests', function (array $arguments): void {
@@ -762,7 +766,7 @@ test('complete recordings discard startup inputs that now define tests', functio
     $this->project->git()->commit('Load support that matches the suite');
     $baseline = ($this->run)(['--fresh', ...$arguments]);
     expect($baseline->exitCode)->toBe(0, $baseline->describe())
-        ->and($this->project->graph()['pre_test_files'])->toContain($support);
+        ->and($this->project->graph()['pre_test_files'])->not->toContain($support);
     $test = "<?php test('converted support', fn () => expect(1)->toBe(1));\n";
     $this->project->write($support, $test);
     $greeter = file_get_contents($this->project->path('tests/Unit/GreeterTest.php'));

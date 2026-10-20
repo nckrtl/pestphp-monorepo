@@ -233,5 +233,5 @@ test('a graph recorded before setup coverage is rebuilt', function (): void {
     $result = ($this->run)([]);
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($result->replayed())->toBe(0, $result->describe())
-        ->and($this->project->graph()['fingerprint']['structural']['schema'])->toBe(27);
+        ->and($this->project->graph()['fingerprint']['structural']['schema'])->toBe(29);
 })->skipOnWindows();

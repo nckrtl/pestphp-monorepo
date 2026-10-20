@@ -26,11 +26,11 @@ afterEach(function (): void {
     rmdir($this->root);
 });
 
-it('does not confuse a matching suite helper with a file defining tests', function (): void {
+it('does not promote a loaded suite helper to a global input', function (): void {
     expect($this->files->startupInputs([
         $this->root.'tests/Example.php',
         $this->root.'tests/Helper.php',
-    ], [$this->root.'tests/Example.php']))->toBe(['bootstrap.php', 'tests/Helper.php']);
+    ], [$this->root.'tests/Example.php']))->toBe(['bootstrap.php']);
 });
 
 it('keeps configured bootstraps outside the test directories', function (): void {
