@@ -61,7 +61,7 @@ final class SourceScope
             //
         }
 
-        $rootIncludes = self::topLevelProjectDirs($projectRoot);
+        $rootIncludes = [...self::topLevelProjectDirs($projectRoot), ...new PathRepositories($projectRoot)->directories()];
 
         $includes = array_values(array_unique([...$phpunitIncludes, ...$rootIncludes]));
         $excludes = array_values(array_unique([

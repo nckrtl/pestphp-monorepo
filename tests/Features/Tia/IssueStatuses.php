@@ -2,7 +2,14 @@
 
 declare(strict_types=1);
 
+use Pest\Plugins\Tia\Recorder;
 use Tests\Fixtures\Tia\Project;
+
+beforeEach(function (): void {
+    if (! new Recorder()->driverAvailable()) {
+        $this->markTestSkipped('Refreshing edited PHP dependencies requires coverage.');
+    }
+});
 
 afterEach(function (): void {
     Project::destroyAll();

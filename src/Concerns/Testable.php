@@ -11,6 +11,7 @@ use Pest\Plugins\Tia;
 use Pest\Plugins\Tia\Collectors;
 use Pest\Plugins\Tia\Enums\ReplayType;
 use Pest\Plugins\Tia\Recorder;
+use Pest\Plugins\Tia\ResultCollector;
 use Pest\Preset;
 use Pest\Support\ChainableClosure;
 use Pest\Support\Container;
@@ -322,6 +323,11 @@ trait Testable
         $initialProperties = get_object_vars($this);
 
         for ($attempt = 1; $attempt <= $method->flakyTries; $attempt++) {
+            if ($attempt > 1) {
+                $collector = Container::getInstance()->get(ResultCollector::class);
+                assert($collector instanceof ResultCollector);
+                $collector->testRetried();
+            }
             try {
                 return $this->__callClosure($closure, $arguments);
             } catch (Throwable $e) {

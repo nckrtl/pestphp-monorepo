@@ -110,8 +110,8 @@ test('setup failures finish coverage before the next test in the same worker', f
     $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
 
     expect($result->exitCode)->toBe(0, $result->describe())
-        ->and($result->affected())->toBe(6, $result->describe())
-        ->and($result->tally())->toContain('6 passed');
+        ->and($result->tally())->toContain($outcome === 'error' ? '10 passed' : '6 passed')
+        ->and($result->replayed())->toBe(0, $result->describe());
 })->with(['error', 'skip'])->with([
     'sequential' => [[]],
     'one worker' => [['--parallel', '--processes=1']],
@@ -233,5 +233,5 @@ test('a graph recorded before setup coverage is rebuilt', function (): void {
     $result = ($this->run)([]);
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($result->replayed())->toBe(0, $result->describe())
-        ->and($this->project->graph()['fingerprint']['structural']['schema'])->toBe(26);
+        ->and($this->project->graph()['fingerprint']['structural']['schema'])->toBe(28);
 })->skipOnWindows();

@@ -22,39 +22,39 @@ describe('of()', function (): void {
 });
 
 describe('PHP files', function (): void {
-    it('produces the same hash regardless of whitespace differences', function (): void {
+    it('detects line and whitespace changes', function (): void {
         $a = ContentHash::ofContent('a.php', "<?php \$foo   =   1;\n\necho   \$foo;");
         $b = ContentHash::ofContent('a.php', '<?php $foo=1; echo $foo;');
 
-        expect($a)->toBe($b);
+        expect($a)->not->toBe($b);
     });
 
-    it('ignores single-line comments', function (): void {
+    it('detects changes to single-line comments', function (): void {
         $a = ContentHash::ofContent('a.php', "<?php\n// this is a comment\n\$foo = 1;");
         $b = ContentHash::ofContent('a.php', "<?php\n\$foo = 1;");
 
-        expect($a)->toBe($b);
+        expect($a)->not->toBe($b);
     });
 
-    it('ignores hash-style comments', function (): void {
+    it('detects changes to hash-style comments', function (): void {
         $a = ContentHash::ofContent('a.php', "<?php\n# hash comment\n\$foo = 1;");
         $b = ContentHash::ofContent('a.php', "<?php\n\$foo = 1;");
 
-        expect($a)->toBe($b);
+        expect($a)->not->toBe($b);
     });
 
-    it('ignores multi-line comments', function (): void {
+    it('detects changes to multi-line comments', function (): void {
         $a = ContentHash::ofContent('a.php', "<?php\n/* a multi\n line comment */\n\$foo = 1;");
         $b = ContentHash::ofContent('a.php', "<?php\n\$foo = 1;");
 
-        expect($a)->toBe($b);
+        expect($a)->not->toBe($b);
     });
 
-    it('ignores doc comments', function (): void {
+    it('detects changes to doc comments', function (): void {
         $a = ContentHash::ofContent('a.php', "<?php\n/**\n * @return int\n */\nfunction foo() { return 1; }");
         $b = ContentHash::ofContent('a.php', "<?php\nfunction foo() { return 1; }");
 
-        expect($a)->toBe($b);
+        expect($a)->not->toBe($b);
     });
 
     it('detects code changes', function (): void {
@@ -84,11 +84,11 @@ describe('PHP files', function (): void {
         expect($hash)->toBeString()->not->toBeEmpty();
     });
 
-    it('is case-insensitive on the file extension', function (): void {
+    it('preserves raw contents regardless of the extension', function (): void {
         $a = ContentHash::ofContent('a.PHP', "<?php\n// comment\n\$foo = 1;");
         $b = ContentHash::ofContent('a.php', "<?php\n\$foo = 1;");
 
-        expect($a)->toBe($b);
+        expect($a)->not->toBe($b);
     });
 });
 
@@ -248,10 +248,10 @@ describe('unknown extensions', function (): void {
 });
 
 describe('output format', function (): void {
-    it('returns a 32-character hex xxh128 hash', function (): void {
+    it('returns a SHA-256 hash for PHP', function (): void {
         $hash = ContentHash::ofContent('a.php', '<?php $foo = 1;');
 
-        expect($hash)->toMatch('/^[a-f0-9]{32}$/');
+        expect($hash)->toMatch('/^[a-f0-9]{64}$/');
     });
 
     it('returns a stable hash for empty content', function (): void {

@@ -43,32 +43,7 @@ final class ContentHash
 
     private static function hashPhpContent(string $raw): string
     {
-        $tokens = @token_get_all($raw);
-
-        if ($tokens === []) {
-            return hash('xxh128', $raw);
-        }
-
-        $normalised = '';
-
-        foreach ($tokens as $token) {
-            if (is_array($token)) {
-                if ($token[0] === T_WHITESPACE) {
-                    continue;
-                }
-                if ($token[0] === T_COMMENT) {
-                    continue;
-                }
-                if ($token[0] === T_DOC_COMMENT) {
-                    continue;
-                }
-                $normalised .= $token[1];
-            } else {
-                $normalised .= $token;
-            }
-        }
-
-        return hash('xxh128', $normalised);
+        return hash('sha256', $raw);
     }
 
     private static function hashBladeContent(string $raw): string

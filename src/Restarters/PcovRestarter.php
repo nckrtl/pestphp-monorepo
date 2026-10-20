@@ -6,6 +6,7 @@ namespace Pest\Restarters;
 
 use Pest\Contracts\Restarter;
 use Pest\Plugins\Tia;
+use Pest\Support\Git;
 
 /**
  * @internal
@@ -34,6 +35,7 @@ final class PcovRestarter implements Restarter
             return;
         }
 
+        $projectRoot = new Git($projectRoot)->output(['rev-parse', '--show-toplevel']) ?? $projectRoot;
         $desired = $this->normalise($projectRoot);
         $current = $this->normalise((string) ini_get('pcov.directory'));
 

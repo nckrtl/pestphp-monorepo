@@ -19,6 +19,8 @@ final readonly class Php implements WatchDefault
     public function defaults(string $projectRoot, string $testPath): array
     {
         return [
+            $testPath.'/**/*' => [$testPath],
+
             '.env' => [$testPath],
             '.env.testing' => [$testPath],
             '.env.local' => [$testPath],
@@ -26,9 +28,6 @@ final readonly class Php implements WatchDefault
 
             'docker-compose.yml' => [$testPath],
             'docker-compose.yaml' => [$testPath],
-
-            $testPath.'/Fixtures/**/*' => [$testPath],
-            $testPath.'/**/Fixtures/**/*' => [$testPath],
 
             $testPath.'/.pest/snapshots/**/*.snap' => [$testPath],
         ];

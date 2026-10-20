@@ -126,14 +126,14 @@ describe('since() in a monorepo subdirectory', function (): void {
         expect($changed)->toBe(['app/Service.php']);
     });
 
-    it('drops cosmetic-only changes, comparing against the baseline blob through the prefix', function (): void {
+    it('preserves whitespace changes when comparing the baseline blob through the prefix', function (): void {
         file_put_contents($this->repoRoot.'/apps/api/app/Service.php', "<?php\n\$a   =   1;\n");
         ($this->git)('add', '-A');
         ($this->git)('commit', '-q', '-m', 'cosmetic');
 
         $changed = new ChangedFiles($this->repoRoot.'/apps/api')->since($this->baselineSha);
 
-        expect($changed)->toBe([]);
+        expect($changed)->toBe(['app/Service.php']);
     });
 });
 

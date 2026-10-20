@@ -202,9 +202,9 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
     private bool $unreadableGraphReported = false;
 
-    private bool $graphUnreachable = false;
-
     private bool $fullSuiteFallbackRan = false;
+
+    private bool $runSucceeded = false;
 
     /** @var array<int, string> */
     private array $originalArguments = [];
@@ -249,7 +249,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
     private function loadGraph(string $projectRoot): ?Graph
     {
-        $json = $this->state->read(self::KEY_GRAPH);
+        $json = $this->state->read($this->graphKey()) ?? $this->state->read(self::KEY_GRAPH);
 
         if ($json === null) {
             return null;
@@ -268,13 +268,18 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         return $graph;
     }
 
+    private function graphKey(): string
+    {
+        return Storage::graphKey($this->branch, $this->fallbackBranch);
+    }
+
     private function discardUnreadableGraph(): void
     {
         if (Parallel::isWorker()) {
             return;
         }
 
-        if (! $this->deleteState(self::KEY_GRAPH)) {
+        if (! $this->deleteState($this->graphKey())) {
             return;
         }
 
@@ -301,7 +306,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return false;
         }
 
-        return $this->state->write(self::KEY_GRAPH, $json);
+        return $this->state->write($this->graphKey(), $json);
     }
 
     /**
@@ -653,20 +658,24 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return;
         }
 
-        $graph = $this->loadGraph($projectRoot) ?? new Graph($projectRoot);
+        $graph = ($this->replayRan ? $this->loadGraph($projectRoot) : null) ?? new Graph($projectRoot);
         $graph->setFingerprint($currentFingerprint);
-        $graph->setRecordedAtSha($this->branch, $currentSha);
-        $graph->setLastRunTree(
-            $this->branch,
-            $changedFiles->snapshotTree($changedFiles->since($currentSha) ?? []),
-        );
+        if ($this->runSucceeded) {
+            $graph->setRecordedAtSha($this->branch, $currentSha);
+            $graph->setLastRunTree(
+                $this->branch,
+                $changedFiles->snapshotTree($changedFiles->since($currentSha) ?? []),
+            );
+        }
         $graph->replacePreTestFiles($recorder->preTestFiles(), complete: ! $this->replayRan);
         $graph->replaceEdges($perTest, keepExisting: $this->piggybackCoverage);
         $graph->replaceTestTables($perTestTables);
         $graph->replaceTestInertiaComponents($perTestInertia);
         $graph->replaceJsFileToComponents(JsModuleGraph::build($projectRoot));
 
-        $this->seedResultsInto($graph);
+        if ($this->runSucceeded) {
+            $this->seedResultsInto($graph);
+        }
 
         if (! $this->saveGraph($graph)) {
             $this->renderBadge('ERROR', 'Could not write the dependency graph.');
@@ -695,7 +704,16 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $this->mergeWorkerReplayPartials();
         }
 
-        if ($this->writesSuppressed) {
+        $this->runSucceeded = $exitCode === 0 && $this->affectedFilesReported();
+
+        if (! $this->writesSuppressed && ! $this->runSucceeded && $this->replayRan && ! $this->fullSuiteFallbackRan) {
+            $this->snapshotTestResults(complete: false);
+        }
+
+        if ($this->writesSuppressed || (! $this->runSucceeded && ($this->replayRan || $this->resultsOnlyWrites)) || $this->fullSuiteFallbackRan) {
+            $this->writesSuppressed = true;
+            $this->purgeWorkerPartials();
+
             return $exitCode;
         }
 
@@ -705,11 +723,13 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return $exitCode;
         }
 
-        if ($this->replayRan || $this->graphUnreachable || $this->fullSuiteFallbackRan) {
-            $this->bumpRecordedSha();
-        }
-
         if ((string) Parallel::getGlobal(self::RECORDING_GLOBAL) !== '1') {
+            if ($this->recordingActive && ! $this->replayRan) {
+                return $exitCode;
+            }
+            if ($this->replayRan && ! $this->recordingActive) {
+                $this->bumpRecordedSha();
+            }
             $this->snapshotTestResults();
 
             return $exitCode;
@@ -742,13 +762,15 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return $exitCode;
         }
 
-        $graph = $this->loadGraph($projectRoot) ?? new Graph($projectRoot);
+        $graph = ($this->replayRan ? $this->loadGraph($projectRoot) : null) ?? new Graph($projectRoot);
         $graph->setFingerprint($currentFingerprint);
-        $graph->setRecordedAtSha($this->branch, $currentSha);
-        $graph->setLastRunTree(
-            $this->branch,
-            $changedFiles->snapshotTree($changedFiles->since($currentSha) ?? []),
-        );
+        if ($this->runSucceeded) {
+            $graph->setRecordedAtSha($this->branch, $currentSha);
+            $graph->setLastRunTree(
+                $this->branch,
+                $changedFiles->snapshotTree($changedFiles->since($currentSha) ?? []),
+            );
+        }
 
         [$finalised, $finalisedTables, $finalisedInertia, $preTestFiles] = $this->consumePartials($partialKeys);
 
@@ -778,7 +800,9 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return $exitCode;
         }
 
-        $this->snapshotTestResults(markKnownTestFiles: true);
+        if ($this->runSucceeded) {
+            $this->snapshotTestResults(markKnownTestFiles: true);
+        }
 
         return $exitCode;
     }
@@ -815,7 +839,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             }
 
             if ($this->canRebuildGraph()) {
-                $this->deleteState(self::KEY_GRAPH);
+                $this->deleteState($this->graphKey());
                 $this->deleteState(self::KEY_COVERAGE_CACHE);
             }
 
@@ -889,18 +913,6 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $graph = $this->reconcileFingerprint($graph, $fingerprint);
         }
 
-        if ($graph instanceof Graph && $this->testBase === null) {
-            $changedFiles = new ChangedFiles($projectRoot);
-            $branchSha = $graph->recordedAtSha($this->branch);
-
-            if ($branchSha !== null
-                && $changedFiles->since($branchSha) === null) {
-                $this->renderBadge('WARN', 'Recorded commit is no longer reachable — graph will be rebuilt.');
-                $graph = null;
-                $this->graphUnreachable = true;
-            }
-        }
-
         if (! $graph instanceof Graph
             && ! $forceRebuild
             && ! $this->baselineFetchAttemptedForDrift
@@ -947,7 +959,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
     private function purgeState(): void
     {
         foreach ([
-            self::KEY_GRAPH,
+            $this->graphKey(),
             self::KEY_AFFECTED,
             self::KEY_COVERAGE_CACHE,
             self::KEY_COVERAGE_MARKER,
@@ -1096,20 +1108,19 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             : ($this->testBase ?? $graph->recordedAtSha($this->branch));
         $changed = $changedFiles->since($branchSha);
 
-        if ($this->testBase === 'graph' && ($branchSha === null || $changed === null)) {
-            $this->renderBadge('WARN', 'Graph has no reachable default-branch commit — recording the full suite.');
+        $resultSha = $graph->recordedAtSha($this->branch);
+        if ($branchSha === null || $changed === null || $resultSha === null || $changedFiles->since($resultSha) === null) {
+            $this->renderBadge('WARN', 'Graph has no ancestor recording commit — recording the full suite.');
 
             return $this->enterRecordMode($arguments);
         }
 
         if ($this->testBase !== null && $this->testBase !== 'graph'
-            && Fingerprint::touchesInputs($changed ?? [], $projectRoot, $this->fingerprintArguments, $this->testBase)) {
+            && Fingerprint::touchesInputs($changed, $projectRoot, $this->fingerprintArguments, $this->testBase)) {
             $this->renderBadge('WARN', 'Commit delta changes a fingerprint input — recording the full suite.');
 
             return $this->enterRecordMode($arguments);
         }
-
-        $changed ??= [];
 
         if ($this->testBase === null) {
             $changed = $changedFiles->filterUnchangedSinceLastRun(
@@ -1451,6 +1462,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $this->state->delete($key);
         }
 
+        $this->writesSuppressed = true;
         $this->renderBadge('WARN', sprintf(
             '%d worker(s) had no coverage driver — their per-test edges and results were dropped.',
             count($keys),
@@ -1728,6 +1740,25 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         });
     }
 
+    private function affectedFilesReported(): bool
+    {
+        $collector = Container::getInstance()->get(ResultCollector::class);
+        assert($collector instanceof ResultCollector);
+        $reported = [];
+        $root = rtrim(TestSuite::getInstance()->rootPath, '/').'/';
+        foreach ($collector->all() as $testId => $result) {
+            $file = $result['file'] ?? null;
+            if ($file === null || str_contains($file, "eval()'d")) {
+                $file = $this->resolveFailedTestFile($testId);
+            }
+            if ($file !== null) {
+                $reported[str_starts_with($file, $root) ? substr($file, strlen($root)) : $file] = true;
+            }
+        }
+
+        return array_all(array_keys($this->affectedFiles), static fn (string $file): bool => isset($reported[$file]));
+    }
+
     private function bumpRecordedSha(): void
     {
         $projectRoot = TestSuite::getInstance()->rootPath;
@@ -1864,15 +1895,14 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
         $projectRoot = TestSuite::getInstance()->rootPath;
 
-        $graph = $this->loadGraph($projectRoot);
-
-        if (! $graph instanceof Graph) {
-            return;
-        }
-
         try {
             $this->resolveBranch($projectRoot);
         } catch (MissingDependency) {
+        }
+
+        $graph = $this->loadGraph($projectRoot);
+        if (! $graph instanceof Graph) {
+            return;
         }
 
         $graph->setFallbackBranch($this->fallbackBranch);
@@ -2167,9 +2197,6 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             }
 
             if (str_ends_with($rel, '.blade.php')) {
-                continue;
-            }
-            if (str_starts_with($rel, 'tests/')) {
                 continue;
             }
             if (str_starts_with($rel, 'vendor/')) {

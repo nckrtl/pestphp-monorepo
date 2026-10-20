@@ -16,6 +16,7 @@ use ParaTest\WrapperRunner\SuiteLoader;
 use ParaTest\WrapperRunner\WrapperWorker;
 use Pest\Plugins\Tia;
 use Pest\Result;
+use Pest\Support\Git;
 use Pest\TestSuite;
 use PHPUnit\Event\Facade as EventFacade;
 use PHPUnit\Event\Test\AfterLastTestMethodFailed;
@@ -204,7 +205,7 @@ final class WrapperRunner implements RunnerInterface
             return $parameters;
         }
 
-        return array_merge($parameters, ['-d', 'pcov.directory='.TestSuite::getInstance()->rootPath]);
+        return array_merge($parameters, ['-d', 'pcov.directory='.(new Git(TestSuite::getInstance()->rootPath)->output(['rev-parse', '--show-toplevel']) ?? TestSuite::getInstance()->rootPath)]);
     }
 
     /** @return non-empty-string */

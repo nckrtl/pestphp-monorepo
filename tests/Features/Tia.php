@@ -1,83 +1,37 @@
 <?php
 
 use Pest\Plugins\Tia;
-use Pest\Plugins\Tia\ChangedFiles;
 use Pest\Plugins\Tia\FileState;
 use Pest\Plugins\Tia\Fingerprint;
 use Pest\Plugins\Tia\Graph;
-use Pest\Plugins\Tia\Storage;
 use Pest\Support\Str;
-use Symfony\Component\Process\Process;
+use Tests\Fixtures\Tia\Project;
 
 it('does not run user hooks when replaying cached skipped and incomplete results', function (): void {
-    $projectRoot = dirname(__DIR__, 2);
-    $home = sys_get_temp_dir().'/pest-tia-'.bin2hex(random_bytes(8));
-    $fixture = 'tests/Fixtures/Suites/TiaReplayHooks.php';
-
-    mkdir($home, 0755, true);
-
+    $project = Project::make();
     try {
-        $changedFiles = new ChangedFiles($projectRoot);
-        $branch = $changedFiles->currentBranch() ?? 'main';
-        $sha = $changedFiles->currentSha();
-
-        $id = fn (string $description): string => 'P\Tests\Fixtures\Suites\TiaReplayHooks::'.Str::evaluable($description);
-
-        $graph = new Graph($projectRoot);
-        $graph->setFingerprint(Fingerprint::compute($projectRoot, ['--configuration', 'tests/Fixtures/Suites/TiaReplayHooks.xml']));
-        $graph->setRecordedAtSha($branch, $sha);
-        $graph->setLastRunTree($branch, $changedFiles->snapshotTree($changedFiles->since($sha) ?? []));
+        $fixture = 'tests/ReplayTest.php';
+        $project->write($fixture, (string) file_get_contents(__DIR__.'/../Fixtures/Suites/TiaReplayHooks.php'));
+        $project->write('phpunit.xml', '<?xml version="1.0"?><phpunit bootstrap="vendor/autoload.php"><testsuites><testsuite name="replay"><file>'.$fixture.'</file></testsuite></testsuites></phpunit>');
+        $project->git()->commit('Add replay hook fixture');
+        $id = fn (string $description): string => 'P\\Tests\\ReplayTest::'.Str::evaluable($description);
+        $graph = new Graph($project->path());
+        $graph->setFingerprint(Fingerprint::compute($project->path()));
+        $graph->setRecordedAtSha('master', $project->git()->sha());
         $graph->markKnownTestFiles([$fixture]);
-        $graph->setResult($branch, $id('replayed pass'), 0, '', 0.01, 1, $fixture);
-        $graph->setResult($branch, $id('replayed skip'), 1, 'cached skip', 0.01, 0, $fixture);
-        $graph->setResult($branch, $id('replayed incomplete'), 2, 'cached incomplete', 0.01, 0, $fixture);
-
+        $graph->setResult('master', $id('replayed pass'), 0, '', 0.01, 1, $fixture);
+        $graph->setResult('master', $id('replayed skip'), 1, 'cached skip', 0.01, 0, $fixture);
+        $graph->setResult('master', $id('replayed incomplete'), 2, 'cached incomplete', 0.01, 0, $fixture);
         $json = $graph->encode();
-
-        expect($json)->not->toBeNull();
-
-        $originalHome = getenv('HOME');
-        putenv('HOME='.$home);
-
-        try {
-            $storage = new FileState(Storage::tempDir($projectRoot));
-        } finally {
-            putenv($originalHome === false ? 'HOME' : 'HOME='.$originalHome);
-        }
-
-        expect($storage->write(Tia::KEY_GRAPH, (string) $json))->toBeTrue();
-
-        $process = new Process(
-            ['php', 'bin/pest', '--configuration', 'tests/Fixtures/Suites/TiaReplayHooks.xml', '--tia'],
-            $projectRoot,
-            [
-                'COLLISION_PRINTER' => 'DefaultPrinter',
-                'COLLISION_IGNORE_DURATION' => 'true',
-                'PARATEST' => 0,
-                'PAO_DISABLE' => '1',
-                'HOME' => $home,
-                'CI_DEFAULT_BRANCH' => $branch,
-            ],
-        );
-
-        $process->run();
-
-        $output = removeAnsiEscapeSequences($process->getOutput().$process->getErrorOutput());
-
-        expect($output)->toContain('3 replayed')
-            ->and($output)->not->toContain('must not run for replayed tests')
-            ->and($output)->toContain('1 incomplete, 1 skipped, 1 passed')
-            ->and($process->getExitCode())->toBe(0);
+        $storage = new FileState($project->graphDir());
+        expect($json)->not->toBeNull()
+            ->and($storage->write(Tia::KEY_GRAPH, (string) $json))->toBeTrue();
+        $result = $project->pest('--tia');
+        expect($result->output)->toContain('3 replayed')
+            ->and($result->output)->not->toContain('must not run for replayed tests')
+            ->and($result->output)->toContain('1 incomplete, 1 skipped, 1 passed')
+            ->and($result->exitCode)->toBe(0);
     } finally {
-        $paths = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($home, FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($paths as $path) {
-            $path->isDir() ? @rmdir($path->getPathname()) : @unlink($path->getPathname());
-        }
-
-        @rmdir($home);
+        Project::destroyAll();
     }
 })->skipOnWindows();

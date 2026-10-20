@@ -55,7 +55,7 @@ test('a branch that only lives on the remote keeps its baseline', function (): v
 
     $project->pest('--tia');
 
-    expect($project->branchKeys())->toBe(['master', 'remote-only']);
+    expect($project->branchKeys())->toBe(['master']);
 })->skipOnWindows();
 
 test('a branch checked out in a worktree keeps its baseline', function (): void {
@@ -72,10 +72,10 @@ test('a branch checked out in a worktree keeps its baseline', function (): void 
 
     $project->git()->run(['worktree', 'remove', '--force', $project->path().'-wt']);
 
-    expect($project->branchKeys())->toBe(['master', 'wt-branch']);
+    expect($project->branchKeys())->toBe(['master']);
 })->skipOnWindows();
 
-test('deleting many branches reclaims every one of their baselines', function (array $arguments): void {
+test('each branch stores only its own results and the default baseline', function (array $arguments): void {
     $project = Project::make('master');
     $project->seed('master');
 
@@ -84,7 +84,7 @@ test('deleting many branches reclaims every one of their baselines', function (a
         $project->pest('--tia', ...$arguments);
     }
 
-    expect($project->branchKeys())->toHaveCount(5);
+    expect($project->branchKeys())->toBe(['master', 'feature-4']);
 
     $project->git()->switchTo('master');
 
@@ -111,7 +111,7 @@ test('a narrowed run does not reclaim anything', function (): void {
     $project->pest('--tia', '--filter=adds two numbers');
     $delta = $project->delta();
 
-    expect($project->branchKeys())->toBe(['master', 'feature-x'])
+    expect($project->branchKeys())->toBe(['master'])
         ->and($delta->isResultsOnly())->toBeTrue($delta->summary());
 })->skipOnWindows();
 

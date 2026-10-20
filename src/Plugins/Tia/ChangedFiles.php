@@ -16,10 +16,13 @@ final readonly class ChangedFiles
 
     private string $repoPrefix;
 
+    private PathRepositories $pathRepositories;
+
     public function __construct(private string $projectRoot)
     {
         $this->git = new Git($projectRoot);
         $this->repoPrefix = $this->detectRepoPrefix();
+        $this->pathRepositories = new PathRepositories($projectRoot);
     }
 
     public function repoPrefix(): string
@@ -73,7 +76,7 @@ final readonly class ChangedFiles
 
     /**
      * @param  array<int, string>  $files
-     * @return array<string, string> path → xxh128 content hash
+     * @return array<string, string> path → content hash
      */
     public function snapshotTree(array $files): array
     {
@@ -168,7 +171,7 @@ final readonly class ChangedFiles
 
     public function contentAtSha(string $sha, string $path): ?string
     {
-        return $this->git->show($sha, $this->repoPrefix.$path);
+        return $this->git->show($sha, PathRepositories::repositoryPath($this->repoPrefix.$path));
     }
 
     /**
@@ -305,23 +308,7 @@ final readonly class ChangedFiles
 
     private function shaIsReachable(string $sha): bool
     {
-        if ($this->git->succeeds(['merge-base', '--is-ancestor', $sha, 'HEAD'])) {
-            return true;
-        }
-
-        $parents = $this->git->raw(['show', '--no-patch', '--format=%P', $sha]);
-
-        if ($parents === null) {
-            return false;
-        }
-
-        $parents = explode(' ', trim($parents));
-
-        if (count($parents) < 2) {
-            return false;
-        }
-
-        return array_all($parents, fn (string $parent): bool => $this->git->succeeds(['merge-base', '--is-ancestor', $parent, 'HEAD']));
+        return $this->git->succeeds(['merge-base', '--is-ancestor', $sha, 'HEAD']);
     }
 
     /**
@@ -414,6 +401,12 @@ final readonly class ChangedFiles
         foreach ($repoRelativePaths as $path) {
             if (str_starts_with($path, $this->repoPrefix)) {
                 $projectRelative[] = substr($path, strlen($this->repoPrefix));
+            } else {
+                $repository = substr($this->projectRoot, 0, -strlen($this->repoPrefix));
+                $relative = $this->pathRepositories->relative($repository.'/'.$path);
+                if ($relative !== null) {
+                    $projectRelative[] = $relative;
+                }
             }
         }
 

@@ -11,6 +11,11 @@ final class Storage
 {
     private static ?string $directory = null;
 
+    public static function graphKey(string $branch, string $defaultBranch): string
+    {
+        return $branch === $defaultBranch ? 'graph.json' : 'graph-'.hash('sha256', $branch).'.json';
+    }
+
     public static function tempDir(string $projectRoot): string
     {
         if (self::$directory !== null) {
