@@ -53,3 +53,22 @@ it('retains a file when only its final executable line ran', function (): void {
     expect($method->invoke($recorder, ['/project/Declaration.php' => [3 => -1, 9 => 1]]))
         ->toBe(['/project/Declaration.php']);
 });
+
+test('forked test children cannot publish inherited worker receipts', function (array $arguments): void {
+    $this->project->write('tests/Unit/ForkTest.php', <<<'FIXTURE'
+    <?php
+    test('passes before forking', function (): void { expect(true)->toBeTrue(); });
+    test('waits for its child', function (): void {
+        $pid = pcntl_fork();
+        if ($pid === 0) {
+            exit(0);
+        }
+        expect($pid)->toBeGreaterThan(0);
+        pcntl_waitpid($pid, $childStatus);
+        expect(pcntl_wexitstatus($childStatus))->toBe(0);
+    });
+    FIXTURE);
+    $recording = ($this->run)($arguments);
+    expect($recording->exitCode)->toBe(0, $recording->describe())
+        ->and($this->project->graph()['edges'])->toHaveKey('tests/Unit/ForkTest.php');
+})->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
