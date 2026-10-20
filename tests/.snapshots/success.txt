@@ -2024,7 +2024,7 @@
   ✓ fromMigrationSource() → it extracts tables from DB::table calls
 
    PASS  Tests\Unit\Plugins\Tia\TestFiles
-  ✓ it does not confuse a matching suite helper with a file defining tests
+  ✓ it does not promote a loaded suite helper to a global input
   ✓ it keeps configured bootstraps outside the test directories
   ✓ it does not include app files or files outside the project
   ✓ it only includes support files that were loaded
