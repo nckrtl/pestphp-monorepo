@@ -82,8 +82,8 @@ test('a setup-only extension registration selects its reflected container contra
     $result = ($this->run)(['--tia-base='.$start, ...$arguments]);
 
     expect($result->exitCode)->toBe(1, $result->describe())
-        ->and($result->tally())->toContain('1 failed', '5 passed')
-        ->and($result->affected())->toBe(6, $result->describe());
+        ->and($result->tally())->toContain('1 failed', '9 passed')
+        ->and($result->affected())->toBe(10, $result->describe());
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
 test('setup failures finish coverage before the next test in the same worker', function (string $outcome, array $arguments): void {
@@ -233,5 +233,5 @@ test('a graph recorded before setup coverage is rebuilt', function (): void {
     $result = ($this->run)([]);
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($result->replayed())->toBe(0, $result->describe())
-        ->and($this->project->graph()['fingerprint']['structural']['schema'])->toBe(26);
+        ->and($this->project->graph()['fingerprint']['structural']['schema'])->toBe(27);
 })->skipOnWindows();

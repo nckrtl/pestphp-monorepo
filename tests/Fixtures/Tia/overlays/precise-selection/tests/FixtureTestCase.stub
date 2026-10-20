@@ -17,7 +17,7 @@ class FixtureContainer
 
     public static function getInstance(): self
     {
-        return self::$app;
+        return self::$app ??= new self;
     }
 
     public function bound(string $name): bool
@@ -78,6 +78,7 @@ class FixtureTestCase extends TestCase
     {
         parent::setUp();
 
+        require_once __DIR__.'/../app/Providers/FixtureProvider.php';
         $provider = new FixtureProvider;
         $this->binding = $provider->register();
         $provider->boot();

@@ -89,4 +89,4 @@ jobs:
       run: php bin/pest tests/Features/Tia/BinaryResults.php --compact --fail-on-skipped
 
     - name: Precise TIA selection
-      run: php bin/pest tests/Features/Tia/PreciseSelection.php tests/Features/Tia/ExplicitBase.php --compact --fail-on-skipped
+      run: php bin/pest tests/Features/Tia/Declarations.php tests/Features/Tia/PreciseSelection.php tests/Features/Tia/ExplicitBase.php --compact --fail-on-skipped

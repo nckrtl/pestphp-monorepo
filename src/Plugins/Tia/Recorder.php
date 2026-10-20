@@ -128,6 +128,13 @@ final class Recorder
             return;
         }
 
+        $scope = $this->sourceScope();
+        foreach (get_included_files() as $sourceFile) {
+            if ($scope->contains($sourceFile)) {
+                $this->perTestFiles[$this->currentTestFile][$sourceFile] = true;
+            }
+        }
+
         if (! $this->captureCoverage || ! $this->driverAvailable()) {
             $this->currentTestFile = null;
 
@@ -367,13 +374,6 @@ final class Recorder
             }
 
             if ($covered === []) {
-                continue;
-            }
-
-            $lineKeys = array_keys($lines);
-            $reportsUnexecutedLines = count($covered) < count($lines);
-
-            if ($reportsUnexecutedLines && count($covered) === 1 && $covered[0] === max($lineKeys)) {
                 continue;
             }
 

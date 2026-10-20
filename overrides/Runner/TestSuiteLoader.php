@@ -7,6 +7,8 @@ namespace PHPUnit\Runner;
 use Exception;
 use Pest\Contracts\HasPrintableTestCaseName;
 use Pest\Panic;
+use Pest\Plugins\Parallel;
+use Pest\Plugins\Tia\TestFiles;
 use Pest\TestCases\IgnorableTestCase;
 use Pest\TestSuite;
 use PHPUnit\Framework\TestCase;
@@ -53,6 +55,9 @@ final class TestSuiteLoader
      */
     public function load(string $suiteClassFile): ReflectionClass
     {
+        if (Parallel::isWorker()) {
+            TestFiles::bootstrapForFile($suiteClassFile);
+        }
         $suiteClassName = $this->classNameFromFileName($suiteClassFile);
 
         (static function () use ($suiteClassFile) {

@@ -1171,17 +1171,11 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             );
         }
 
+        if ($canRefreshReplayEdges) {
+            $arguments = $this->isolateRecording($arguments);
+        }
+
         if (! Parallel::isEnabled()) {
-            if ($canRefreshReplayEdges) {
-                if ($this->piggybackCoverage) {
-                    $this->recorder->activateLinkTracking();
-                } else {
-                    $this->recorder->activate();
-                }
-
-                $this->recordingActive = true;
-            }
-
             return $arguments;
         }
 
@@ -1319,42 +1313,31 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $arguments[] = '--no-coverage';
         }
 
-        if (Parallel::isEnabled()) {
-            $this->purgeWorkerPartials();
+        $arguments = $this->isolateRecording($arguments);
 
-            Parallel::setGlobal(self::RECORDING_GLOBAL, '1');
-
-            if ($this->piggybackCoverage) {
-                Parallel::setGlobal(self::PIGGYBACK_COVERAGE_GLOBAL, '1');
-            }
-
-            $this->output->writeln('');
-            $this->renderFreshGraph();
-
-            return $arguments;
-        }
-
+        $this->purgeWorkerPartials();
+        Parallel::setGlobal(self::RECORDING_GLOBAL, '1');
         if ($this->piggybackCoverage) {
-            $recorder->activateLinkTracking();
-            $this->recordingActive = true;
-
-            $this->output->writeln('');
-            $this->renderFreshGraph();
-
-            return $arguments;
+            Parallel::setGlobal(self::PIGGYBACK_COVERAGE_GLOBAL, '1');
         }
+        $this->output->writeln('');
+        $this->renderFreshGraph();
 
-        $recorder->activate();
-        $this->recordingActive = true;
+        return $arguments;
+    }
 
-        if ($this->driftLabel !== null || $this->freshGraphReason !== null) {
-            $this->output->writeln('');
-            $this->renderFreshGraph();
-
-            return $arguments;
+    /**
+     * @param  array<int, string>  $arguments
+     * @return array<int, string>
+     */
+    private function isolateRecording(array $arguments): array
+    {
+        if (! Parallel::isEnabled()) {
+            Parallel::enableForRecording();
+            $arguments[] = '--processes=1';
         }
-
-        $this->renderChild('Running in TIA mode.');
+        $this->popArgumentValue('--max-batch-size', $arguments);
+        $arguments[] = '--max-batch-size=1';
 
         return $arguments;
     }
@@ -1598,7 +1581,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return (string) getmypid();
         }
 
-        return $token;
+        return $token.'-'.getmypid();
     }
 
     /**

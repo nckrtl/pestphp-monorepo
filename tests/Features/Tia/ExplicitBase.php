@@ -608,20 +608,6 @@ test('test directory helpers loaded early or late widen in every process', funct
     $this->project->write('runtime/.gitignore', "*\n");
     $this->project->write('runtime/assert-late', 'baseline');
     $pest = file_get_contents($this->project->path('tests/Pest.php'));
-    $pest .= <<<'PHP'
-
-    pest()->beforeEach(function (): void {
-        $root = dirname(__DIR__);
-        file_put_contents($root.'/runtime/worker-'.getmypid(), 'ready');
-        if (getenv('TEST_TOKEN') !== false) {
-            $deadline = microtime(true) + 10;
-            while (count(glob($root.'/runtime/worker-*')) < 2 && microtime(true) < $deadline) {
-                usleep(1000);
-            }
-            expect(count(glob($root.'/runtime/worker-*')))->toBeGreaterThanOrEqual(2);
-        }
-    })->in('Unit', 'Feature');
-    PHP;
     $this->project->write('tests/Pest.php', $pest);
     for ($index = 0; $index < 6; $index++) {
         $this->project->write('tests/Unit/AWorker0'.$index.'Test.php', "<?php test('worker ".$index."', fn () => expect(true)->toBeTrue());\n");
@@ -632,16 +618,6 @@ test('test directory helpers loaded early or late widen in every process', funct
     $load = "require_once __DIR__.'/../Support/shared.php';";
     if ($timing === 'beforeAll') {
         $load = 'beforeAll(function (): void { '.$load.' });';
-    }
-    if ($position === 'late') {
-        $load = <<<'PHP'
-        if (getenv('TEST_TOKEN') !== false && is_file(dirname(__DIR__, 2).'/runtime/assert-late') && ! is_file(dirname(__DIR__, 2).'/runtime/worker-'.getmypid())) {
-            throw new RuntimeException('The helper file must not be the first file in its worker');
-        }
-        PHP;
-        $load .= $timing === 'beforeAll'
-            ? "beforeAll(function (): void { require_once __DIR__.'/../Support/shared.php'; });"
-            : "require_once __DIR__.'/../Support/shared.php';";
     }
     $test = str_replace('<?php', '<?php '.$load, $test);
     $this->project->write($file, str_replace('expect(true)->toBeTrue()', 'expect(STARTUP_HELPER)->toBeTrue()', $test));
