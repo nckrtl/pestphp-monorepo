@@ -3,10 +3,16 @@
 declare(strict_types=1);
 
 use Pest\Plugins\Tia\Recorder;
+use Pest\Plugins\Tia\SourceScope;
 
 describe('activateLinkTracking()', function (): void {
+    beforeEach(function (): void {
+        $this->recorder = new Recorder;
+        new ReflectionProperty(Recorder::class, 'sourceScope')->setValue($this->recorder, new SourceScope(['/project'], []));
+    });
+
     it('ignores links outside a test and retains links until it finishes', function (): void {
-        $recorder = new Recorder;
+        $recorder = $this->recorder;
         $recorder->activateLinkTracking();
 
         $recorder->linkSource('/project/app/Providers/BootstrapProvider.php');
@@ -26,7 +32,7 @@ describe('activateLinkTracking()', function (): void {
     });
 
     it('tracks tables without a coverage driver', function (): void {
-        $recorder = new Recorder;
+        $recorder = $this->recorder;
         $recorder->activateLinkTracking();
 
         $recorder->beginTest('Some\Missing\TestClass', 'it does things', '/project/tests/Feature/OrderTest.php');
@@ -39,7 +45,7 @@ describe('activateLinkTracking()', function (): void {
     });
 
     it('tracks inertia components without a coverage driver', function (): void {
-        $recorder = new Recorder;
+        $recorder = $this->recorder;
         $recorder->activateLinkTracking();
 
         $recorder->beginTest('Some\Missing\TestClass', 'it renders', '/project/tests/Feature/DashboardTest.php');
@@ -51,7 +57,7 @@ describe('activateLinkTracking()', function (): void {
     });
 
     it('tracks linked sources across consecutive tests', function (): void {
-        $recorder = new Recorder;
+        $recorder = $this->recorder;
         $recorder->activateLinkTracking();
 
         $recorder->beginTest('Some\Missing\TestClass', 'first', '/project/tests/Feature/FirstTest.php');
@@ -69,7 +75,7 @@ describe('activateLinkTracking()', function (): void {
     });
 
     it('records nothing while inactive', function (): void {
-        $recorder = new Recorder;
+        $recorder = $this->recorder;
 
         $recorder->beginTest('Some\Missing\TestClass', 'it does things', '/project/tests/Feature/OrderTest.php');
         $recorder->linkTable('orders');
