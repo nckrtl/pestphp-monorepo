@@ -115,7 +115,7 @@ final readonly class TestFiles
                 continue;
             }
             foreach ($this->directories as $directory) {
-                if (str_starts_with($file, $directory)) {
+                if (in_array($file, [$directory.'Pest.php', $directory.'TestCase.php'], true)) {
                     $inputs[substr($file, strlen($this->root))] = true;
                     break;
                 }

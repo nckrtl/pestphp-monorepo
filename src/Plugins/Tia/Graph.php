@@ -474,6 +474,9 @@ final class Graph
             if (! $testFiles->isCandidate($rel)) {
                 continue;
             }
+            if (isset($this->fileIds[$rel]) && ! $this->knowsTest($rel)) {
+                continue;
+            }
             if (! is_file($this->projectRoot.'/'.$rel)) {
                 continue;
             }
