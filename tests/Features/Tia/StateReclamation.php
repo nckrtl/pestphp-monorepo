@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Pest\Plugins\Tia\Recorder;
 use Tests\Fixtures\Tia\Project;
 
 afterEach(function (): void {
@@ -54,7 +55,8 @@ test('a detached HEAD can replace an unreadable graph for a checkout that can re
 
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($result->tally())->toContain(Project::TOTAL_TESTS.' passed')
-        ->and(file_get_contents($project->graphDir().'/graph.json'))->not->toBe('{not json');
+        ->and($project->graph() !== null)->toBe(new Recorder()->driverAvailable())
+        ->and(file_get_contents($project->graphDir().'/graph.json'))->toBe('{not json');
 })->skipOnWindows();
 
 test('a cached failure whose test file was deleted stops widening later runs', function (array $arguments): void {
@@ -332,7 +334,7 @@ test('a second green run on a feature branch writes nothing at all', function (a
         ->and($delta->isHardSuppressed())->toBeTrue($delta->summary());
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
-test('a graph whose recorded commit is gone is re-anchored, not warned about forever', function (array $arguments): void {
+test('an unreachable graph needs coverage to re-anchor and never replays fallback results', function (array $arguments): void {
     $project = Project::make('master');
     $project->git()->commit('second');
     $project->seed('master');
@@ -345,18 +347,16 @@ test('a graph whose recorded commit is gone is re-anchored, not warned about for
     $first = $project->pest('--tia', ...$arguments);
 
     expect($first->exitCode)->toBe(0, $first->describe())
-        ->and($first->output)->toContain('no longer reachable')
+        ->and($first->output)->toContain('no ancestor recording commit')
         ->and($first->tally())->toContain(Project::TOTAL_TESTS.' passed')
-        ->and($project->graph()['baselines']['master']['sha'])->not->toBe($recordedSha)
-        ->and($project->graph()['baselines']['master']['sha'])->toBe($project->git()->sha());
+        ->and($project->graph()['baselines']['master']['sha'])->toBe(new Recorder()->driverAvailable() ? $project->git()->sha() : $recordedSha);
 
     $project->snapshot();
     $second = $project->pest('--tia', ...$arguments);
-    $delta = $project->delta();
 
-    expect($second->output)->not->toContain('no longer reachable')
-        ->and($second->replayed())->toBe(Project::TOTAL_TESTS, $second->describe())
-        ->and($delta->writtenCount())->toBe(0, $delta->summary());
+    expect(str_contains($second->output, 'no ancestor recording commit'))->toBe(! new Recorder()->driverAvailable())
+        ->and($second->replayed())->toBe(new Recorder()->driverAvailable() ? Project::TOTAL_TESTS : 0, $second->describe())
+        ->and($project->graph()['baselines']['master']['sha'])->toBe(new Recorder()->driverAvailable() ? $project->git()->sha() : $recordedSha);
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
 test('a full suite run without a coverage driver clears the tree it could not refresh', function (array $arguments): void {
@@ -385,7 +385,7 @@ test('a full suite run without a coverage driver clears the tree it could not re
     $second = $project->pestWithEnvironment($project->path(), $environment, '--tia', ...$arguments);
     $delta = $project->delta();
 
-    expect($second->output)->not->toContain('no coverage driver is available')
-        ->and($second->replayed())->toBe(Project::TOTAL_TESTS, $second->describe())
+    expect($second->output)->toContain('no coverage driver is available')
+        ->and($second->replayed())->toBe(0, $second->describe())
         ->and($delta->writtenCount())->toBe(0, $delta->summary());
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();

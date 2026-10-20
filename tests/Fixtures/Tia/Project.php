@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Fixtures\Tia;
 
 use FilesystemIterator;
+use Pest\Exceptions\MissingDependency;
 use Pest\Plugins\Tia;
 use Pest\Plugins\Tia\ChangedFiles;
 use Pest\Plugins\Tia\FileState;
@@ -68,6 +69,8 @@ final class Project
     private array $extraPaths = [];
 
     private string $graphRoot;
+
+    private ?string $runBranch = null;
 
     private function __construct(public readonly string $path)
     {
@@ -161,6 +164,8 @@ final class Project
      */
     public function pestWithEnvironment(string $directory, array $environment, string ...$arguments): PestResult
     {
+        $this->graphRoot = $directory;
+        $this->runBranch = $environment['CI_COMMIT_BRANCH'] ?? $environment['GITHUB_REF_NAME'] ?? null;
         $process = new Process(
             [PHP_BINARY, $directory.'/vendor/pestphp/pest/bin/pest', ...$arguments],
             $directory,
@@ -250,7 +255,7 @@ final class Project
             throw new RuntimeException('Unable to encode the seeded graph.');
         }
 
-        if (! $this->state()->write(Tia::KEY_GRAPH, $json)) {
+        if (! $this->state()->write($this->graphKey(), $json)) {
             throw new RuntimeException('Unable to persist the seeded graph.');
         }
 
@@ -259,13 +264,13 @@ final class Project
 
     public function detachGraph(): string
     {
-        $json = $this->state()->read(Tia::KEY_GRAPH);
+        $json = $this->state()->read($this->graphKey());
 
         if ($json === null) {
             throw new RuntimeException('There is no graph to detach.');
         }
 
-        if (! $this->state()->delete(Tia::KEY_GRAPH)) {
+        if (! $this->state()->delete($this->graphKey())) {
             throw new RuntimeException('Unable to remove the detached graph.');
         }
 
@@ -361,7 +366,7 @@ final class Project
             throw new RuntimeException('There is no graph to mutate.');
         }
 
-        $this->state()->write(Tia::KEY_GRAPH, (string) json_encode($callback($graph), JSON_UNESCAPED_SLASHES));
+        $this->state()->write($this->graphKey(), (string) json_encode($callback($graph), JSON_UNESCAPED_SLASHES));
 
         $this->snapshot();
     }
@@ -371,7 +376,7 @@ final class Project
      */
     public function graph(): ?array
     {
-        $json = $this->state()->read(Tia::KEY_GRAPH);
+        $json = $this->state()->read($this->graphKey());
 
         if ($json === null) {
             return null;
@@ -399,7 +404,7 @@ final class Project
 
     public function graphExists(): bool
     {
-        return is_file($this->graphDir().DIRECTORY_SEPARATOR.Tia::KEY_GRAPH);
+        return is_file($this->graphDir().DIRECTORY_SEPARATOR.$this->graphKey());
     }
 
     public function snapshot(): void
@@ -444,6 +449,21 @@ final class Project
         foreach ([...$this->extraPaths, $this->path] as $path) {
             $this->remove($path);
         }
+    }
+
+    private function graphKey(): string
+    {
+        $files = new ChangedFiles($this->graphRoot);
+        try {
+            $branch = $files->currentBranch();
+        } catch (MissingDependency) {
+            return Tia::KEY_GRAPH;
+        }
+        $branch ??= $this->runBranch ?? Graph::WORKSPACE_BRANCH_PREFIX.substr(hash('sha256', realpath($this->graphRoot) ?: $this->graphRoot), 0, 16);
+        $default = $files->defaultBranch();
+        $key = Storage::graphKey($branch, $default ?? 'main');
+
+        return $this->state()->exists($key) ? $key : Tia::KEY_GRAPH;
     }
 
     private function home(): string

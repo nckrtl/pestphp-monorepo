@@ -15,7 +15,7 @@ use PHPUnit\TextUI\CliArguments\XmlConfigurationFileFinder;
  */
 final readonly class Fingerprint
 {
-    private const int SCHEMA_VERSION = 26;
+    private const int SCHEMA_VERSION = 28;
 
     private const array JS_CONFIG_NAMES = ['tsconfig.json', 'tsconfig.app.json', 'jsconfig.json'];
 
@@ -51,7 +51,7 @@ final readonly class Fingerprint
             }
             $parts = [];
             foreach ($paths as $path) {
-                if ($group !== 'phpunit_config' && $tracked !== null && ! isset($tracked[$path])) {
+                if (! in_array($group, ['phpunit_config', 'path_repositories'], true) && $tracked !== null && ! isset($tracked[$path])) {
                     continue;
                 }
                 $hash = $group === 'package_lock'
@@ -226,7 +226,16 @@ final readonly class Fingerprint
             return str_starts_with($path, $prefix) ? substr($path, strlen($prefix)) : $path;
         }, $configurationPaths);
 
+        $packageMetadata = [];
+        $repositories = new PathRepositories($projectRoot);
+        foreach ($repositories->directories() as $directory) {
+            foreach (['composer.json', 'composer.lock'] as $name) {
+                $packageMetadata[] = $repositories->relative($directory).'/'.$name;
+            }
+        }
+
         return [
+            'path_repositories' => $packageMetadata,
             'composer_lock' => ['composer.lock'],
             'composer_json' => ['composer.json'],
             'phpunit_config' => $configurationPaths,

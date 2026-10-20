@@ -1881,7 +1881,7 @@
   ✓ since() in a monorepo subdirectory → it detects committed changes to files git would C-quote (non-ASCII names)
   ✓ since() in a monorepo subdirectory → it sees committed changes since the baseline sha
   ✓ since() in a monorepo subdirectory → it reports a file renamed OUT of the project subtree as a change to the old path
-  ✓ since() in a monorepo subdirectory → it drops cosmetic-only changes, comparing against the baseline blob through the prefix
+  ✓ since() in a monorepo subdirectory → it preserves whitespace changes when comparing the baseline blob through the prefix
   ✓ since() at the repository root → it keeps the existing root-level behaviour
   ✓ contentAtSha() → it resolves project-relative paths through the subdirectory prefix
   ✓ contentAtSha() → it returns null for paths missing from the commit
@@ -1889,16 +1889,16 @@
    PASS  Tests\Unit\Plugins\Tia\ContentHash
   ✓ of() → it returns false when file does not exist
   ✓ of() → it hashes an existing file
-  ✓ PHP files → it produces the same hash regardless of whitespace differences
-  ✓ PHP files → it ignores single-line comments
-  ✓ PHP files → it ignores hash-style comments
-  ✓ PHP files → it ignores multi-line comments
-  ✓ PHP files → it ignores doc comments
+  ✓ PHP files → it detects line and whitespace changes
+  ✓ PHP files → it detects changes to single-line comments
+  ✓ PHP files → it detects changes to hash-style comments
+  ✓ PHP files → it detects changes to multi-line comments
+  ✓ PHP files → it detects changes to doc comments
   ✓ PHP files → it detects code changes
   ✓ PHP files → it preserves whitespace inside string literals
   ✓ PHP files → it treats variable renames as a change
   ✓ PHP files → it falls back to a raw hash for unparseable PHP
-  ✓ PHP files → it is case-insensitive on the file extension
+  ✓ PHP files → it preserves raw contents regardless of the extension
   ✓ Blade files → it strips blade comments
   ✓ Blade files → it strips multi-line blade comments
   ✓ Blade files → it collapses whitespace
@@ -1920,7 +1920,7 @@
   ✓ unknown extensions → it does not normalise whitespace for unknown extensions
   ✓ unknown extensions → it does not strip comments for unknown extensions
   ✓ unknown extensions → it hashes files with no extension as raw content
-  ✓ output format → it returns a 32-character hex xxh128 hash
+  ✓ output format → it returns a SHA-256 hash for PHP
   ✓ output format → it returns a stable hash for empty content
 
    PASS  Tests\Unit\Plugins\Tia\FileState

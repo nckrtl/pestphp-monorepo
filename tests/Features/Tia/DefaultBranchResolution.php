@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Pest\Plugins\Tia\Recorder;
 use Symfony\Component\Process\ExecutableFinder;
 use Tests\Fixtures\Tia\Project;
 
@@ -29,9 +30,10 @@ test('a declared default branch that does not exist degrades to a full run', fun
 
     $result = $project->pest('--tia');
 
-    expect($result->uncached())->toBe(Project::TOTAL_TESTS, $result->describe())
+    expect($result->replayed())->toBe(0, $result->describe())
+        ->and($result->tally())->toContain('6 passed')
         ->and($result->exitCode)->toBe(0, $result->describe())
-        ->and($project->branchKeys())->toBe(['master', 'feature-x']);
+        ->and($project->branchKeys())->toBe(new Recorder()->driverAvailable() ? ['feature-x'] : ['master', 'feature-x']);
 })->skipOnWindows();
 
 test('a renamed default branch replays and writes under its new name', function (): void {

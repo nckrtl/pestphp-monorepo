@@ -9,7 +9,7 @@ afterEach(function (): void {
     Project::destroyAll();
 });
 
-test('a replacement CI merge reuses its baseline and selects changed tests on either parent', function (array $arguments, string $changedBranch): void {
+test('a replacement CI merge rejects a nonancestor recording even with both parents reachable', function (array $arguments, string $changedBranch): void {
     $project = Project::make('master');
     $git = $project->git();
     $git->switchTo('feature', new: true);
@@ -34,7 +34,7 @@ test('a replacement CI merge reuses its baseline and selects changed tests on ei
 
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($result->output)->not->toContain('no longer reachable')
-        ->and($result->replayed())->toBe(4, $result->describe())
+        ->and($result->replayed())->toBe(0, $result->describe())
         ->and($result->tally())->toContain('6 passed');
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->with(['feature', 'master'])->skipOnWindows();
 

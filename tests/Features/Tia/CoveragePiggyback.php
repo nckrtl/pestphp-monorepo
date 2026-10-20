@@ -78,15 +78,25 @@ test('xml-configured coverage does not prevent tia recording', function (): void
         ->and(array_keys($project->graph()['edges']))->toEqualCanonicalizing(array_keys(Project::EDGES));
 })->skipOnWindows()->skip(! Coverage::isAvailable(), 'Coverage is not available');
 
-test('a coverage report leaves the edges of an existing graph alone', function (): void {
+test('a full coverage recording replaces the prior graph with measured dependencies', function (): void {
     $project = Project::make('master');
     $project->seed('master');
+    $project->mutateGraph(function (array $graph): array {
+        $id = count($graph['files']);
+        $graph['files'][] = 'app/NotActuallyLoaded.php';
+        $graph['edges']['tests/Unit/CalculatorTest.php'][] = $id;
 
-    $project->pest('--tia', '--coverage');
-    $delta = $project->delta();
+        return $graph;
+    });
 
-    expect($delta->edgesMoved())->toBeFalse($delta->summary())
-        ->and($delta->filesMoved())->toBeFalse($delta->summary())
-        ->and($delta->removed())->toBe(0, $delta->summary())
-        ->and($delta->added())->toBe(0, $delta->summary());
-})->skipOnWindows();
+    $result = $project->pest('--tia', '--coverage');
+    expect($result->exitCode)->toBe(0, $result->describe());
+    $graph = $project->graph();
+    expect($graph['files'])->not->toContain('app/NotActuallyLoaded.php')
+        ->and($graph['baselines']['master']['results'])->toHaveCount(Project::TOTAL_TESTS);
+    foreach (Project::EDGES as $test => $sources) {
+        foreach ($sources as $source) {
+            expect($graph['edges'][$test])->toContain(array_search($source, $graph['files'], true));
+        }
+    }
+})->skipOnWindows()->skip(! Coverage::isAvailable(), 'Coverage is not available');

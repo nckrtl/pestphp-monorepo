@@ -67,6 +67,8 @@ final class Graph
 
     private readonly string $projectRoot;
 
+    private readonly PathRepositories $pathRepositories;
+
     /** @var array<string, true>|null */
     private ?array $archTestFiles = null;
 
@@ -78,6 +80,7 @@ final class Graph
         $real = @realpath($projectRoot);
 
         $this->projectRoot = $real !== false ? $real : $projectRoot;
+        $this->pathRepositories = new PathRepositories($this->projectRoot);
     }
 
     public function link(string $testFile, string $sourceFile): void
@@ -669,6 +672,9 @@ final class Graph
         $unknownToGraph = $unparseableMigrations;
 
         foreach ($nonMigrationPaths as $rel) {
+            if (isset($affectedSet[$rel])) {
+                continue;
+            }
             if (isset($preciselyHandledPages[$rel])) {
                 continue;
             }
@@ -679,10 +685,6 @@ final class Graph
                 continue;
             }
             if (! isset($this->fileIds[$rel])) {
-                if (! is_file($this->projectRoot.'/'.$rel)) {
-                    continue;
-                }
-
                 $unknownToGraph[] = $rel;
             }
         }
@@ -983,7 +985,9 @@ final class Graph
     public function clearResults(string $branch): void
     {
         $this->ensureBaseline($branch);
-        $this->baselines[$branch]['results'] = [];
+        foreach ($this->baselines as &$baseline) {
+            $baseline['results'] = [];
+        }
     }
 
     /**
@@ -1992,7 +1996,7 @@ final class Graph
             }
 
             if (! str_starts_with($real, $root)) {
-                return null;
+                return $this->pathRepositories->relative($real);
             }
 
             $relative = str_replace(DIRECTORY_SEPARATOR, '/', substr($real, strlen($root)));

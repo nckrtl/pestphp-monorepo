@@ -31,6 +31,9 @@ final class WatchPatterns
      */
     private array $patterns = [];
 
+    /** @var array<string, array<int, string>> */
+    private array $explicitPatterns = [];
+
     /**
      * @var array<string, array{include: string, excludes: array<int, string>, allowDotfiles: bool}>
      */
@@ -75,6 +78,7 @@ final class WatchPatterns
     public function add(array $patterns): void
     {
         foreach ($patterns as $key => $dir) {
+            $this->explicitPatterns[$key] = array_values(array_unique(array_merge($this->explicitPatterns[$key] ?? [], [$dir])));
             $this->patterns[$key] = array_values(array_unique(
                 array_merge($this->patterns[$key] ?? [], [$dir]),
             ));
@@ -95,7 +99,10 @@ final class WatchPatterns
         $matched = [];
 
         foreach ($changedFiles as $file) {
-            foreach ($this->patterns as $key => $dirs) {
+            $patterns = array_any(array_keys($this->explicitPatterns), fn (string $key): bool => $this->keyMatches($key, $file))
+                ? $this->explicitPatterns
+                : $this->patterns;
+            foreach ($patterns as $key => $dirs) {
                 if (! $this->keyMatches($key, $file)) {
                     continue;
                 }

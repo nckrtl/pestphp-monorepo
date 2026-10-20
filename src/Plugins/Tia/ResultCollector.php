@@ -19,6 +19,9 @@ final class ResultCollector
     /** @var array<string, true> */
     private array $triggered = [];
 
+    /** @var array<string, true> */
+    private array $retried = [];
+
     private ?string $currentTestId = null;
 
     private ?string $currentTestFile = null;
@@ -32,9 +35,22 @@ final class ResultCollector
         $this->startTime = microtime(true);
     }
 
+    public function testRetried(): void
+    {
+        if ($this->currentTestId !== null) {
+            $this->retried[$this->currentTestId] = true;
+        }
+    }
+
     public function testPassed(): void
     {
         if ($this->currentTestId === null) {
+            return;
+        }
+
+        if (isset($this->retried[$this->currentTestId])) {
+            $this->record(TestStatus::unknown());
+
             return;
         }
 
@@ -141,6 +157,7 @@ final class ResultCollector
     {
         $this->results = [];
         $this->triggered = [];
+        $this->retried = [];
         $this->currentTestId = null;
         $this->currentTestFile = null;
         $this->startTime = null;

@@ -130,6 +130,7 @@ test('the graph form records the full suite without a reachable default-branch c
 })->with(['missing', 'unreachable'])->skipOnWindows();
 
 test('the commit form needs no default-branch baseline', function (): void {
+    $this->project->git()->switchTo('implementation', new: true);
     $this->project->seed('implementation');
     $start = $this->project->git()->sha();
     $calculator = file_get_contents($this->project->path('app/Calculator.php'));
@@ -340,7 +341,8 @@ test('a shallow repository accepts its available base and rejects an unavailable
     $unavailable = ($this->run)(['--tia-base='.$parent]);
 
     expect($available->exitCode)->toBe(0, $available->describe())
-        ->and($available->affected())->toBe(4, $available->describe())
+        ->and($available->tally())->toContain('6 passed')
+        ->and($available->replayed())->toBe(0, $available->describe())
         ->and($unavailable->exitCode)->toBe(1, $unavailable->describe())
         ->and($unavailable->output)->toContain('--tia-base must name a reachable commit');
 })->skipOnWindows();
