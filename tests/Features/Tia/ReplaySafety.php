@@ -8,6 +8,7 @@ use Pest\Plugins\Tia\Graph;
 use Pest\Plugins\Tia\Recorder;
 use Pest\Plugins\Tia\ResultCollector;
 use Pest\Plugins\Tia\SourceScope;
+use Pest\Plugins\Tia\WatchPatterns;
 use Tests\Fixtures\Tia\Project;
 
 afterEach(function (): void {
@@ -180,7 +181,7 @@ test('environment drift clears inherited results as well as branch results', fun
 });
 
 test('reset removes explicit watch ownership before another suite configures defaults', function (): void {
-    $watches = new Pest\Plugins\Tia\WatchPatterns;
+    $watches = new WatchPatterns;
     $watches->add(['tests/Fixtures/**/*' => 'tests/OldConsumerTest.php']);
     $watches->reset();
     $watches->useDefaults(__DIR__);
