@@ -60,11 +60,11 @@ test('failed execution leaves the recording commit unchanged', function (array $
         ->and($project->graph()['baselines']['master']['sha'])->toBe($sha);
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
-test('a full run without coverage does not advance a stale graph', function (): void {
+test('a full run without coverage does not advance a stale graph', function (string $file): void {
     $project = Project::make();
     $project->seed('master');
     $sha = $project->git()->sha();
-    $project->write('app/Unrecorded.php', '<?php class Unrecorded {}');
+    $project->write($file, '<?php class Unrecorded {}');
     $project->git()->commit('Add unrecorded PHP');
     $project->write('php-ini/no-coverage.ini', "pcov.enabled=0\n");
     $result = $project->pestWithEnvironment($project->path(), [
@@ -73,7 +73,7 @@ test('a full run without coverage does not advance a stale graph', function (): 
     ], '--tia');
     expect($result->exitCode)->toBe(0, $result->describe())
         ->and($project->graph()['baselines']['master']['sha'])->toBe($sha);
-})->skipOnWindows();
+})->with(['app/Unrecorded.php', 'tests/Support/Unrecorded.php'])->skipOnWindows();
 
 test('raw fixtures are tracked and explicit consumer watches keep them narrow', function (bool $explicitWatch): void {
     $project = Project::make();

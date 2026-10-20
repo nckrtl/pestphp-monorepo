@@ -2199,9 +2199,6 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             if (str_ends_with($rel, '.blade.php')) {
                 continue;
             }
-            if (str_starts_with($rel, 'tests/')) {
-                continue;
-            }
             if (str_starts_with($rel, 'vendor/')) {
                 continue;
             }
