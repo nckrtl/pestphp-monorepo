@@ -218,6 +218,8 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
     private ?string $freshGraphReason = null;
 
+    private readonly int $processId;
+
     public function __construct(
         private readonly OutputInterface $output,
         private readonly Recorder $recorder,
@@ -225,7 +227,9 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         private readonly WatchPatterns $watchPatterns,
         private readonly State $state,
         private readonly BaselineSync $baselineSync,
-    ) {}
+    ) {
+        $this->processId = (int) getmypid();
+    }
 
     private function renderBadge(string $type, string $content): void
     {
@@ -584,6 +588,10 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
     public function terminate(): void
     {
+        if ((int) getmypid() !== $this->processId) {
+            return;
+        }
+
         if ($this->graphWritten) {
             return;
         }
@@ -681,6 +689,10 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
     public function addOutput(int $exitCode): int
     {
+        if ((int) getmypid() !== $this->processId) {
+            return $exitCode;
+        }
+
         if (Parallel::isWorker()) {
             return $exitCode;
         }
