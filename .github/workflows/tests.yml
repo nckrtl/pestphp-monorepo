@@ -79,14 +79,29 @@ jobs:
     - name: Integration Tests
       run: composer test:integration
 
-    - name: Enable PCOV for graph recording regressions
+
+  recording:
+    name: TIA ${{ matrix.suite }} - PHP ${{ matrix.php }} - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        php: ['8.4', '8.5']
+        suite: [BinaryResults, Declarations, PreciseSelection, ExplicitBase]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - name: Setup PHP
       uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
       with:
         php-version: ${{ matrix.php }}
+        tools: composer:v2
         coverage: pcov
-
-    - name: Binary TIA recording and replay
-      run: php bin/pest tests/Features/Tia/BinaryResults.php --compact --fail-on-skipped
-
-    - name: Precise TIA selection
-      run: php bin/pest tests/Features/Tia/Declarations.php tests/Features/Tia/PreciseSelection.php tests/Features/Tia/ExplicitBase.php --compact --fail-on-skipped
+    - name: Install PHP dependencies
+      env:
+        COMPOSER_ROOT_VERSION: 1.x-dev
+      run: composer update --prefer-stable --no-interaction --no-progress
+    - name: Recording regressions
+      run: php bin/pest tests/Features/Tia/${{ matrix.suite }}.php --compact --fail-on-skipped
