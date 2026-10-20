@@ -27,13 +27,13 @@ test('prefers the per-process UNIQUE_TEST_TOKEN over the per-slot TEST_TOKEN, so
     $_SERVER['UNIQUE_TEST_TOKEN'] = '2_9f31be04117a';
     $processB = tiaWorkerToken();
 
-    expect($processA)->toBe('2_6a690d236824c')
-        ->and($processB)->toBe('2_9f31be04117a')
+    expect($processA)->toBe('2_6a690d236824c-'.getmypid())
+        ->and($processB)->toBe('2_9f31be04117a-'.getmypid())
         ->and($processA)->not->toBe($processB);
 });
 
 test('falls back to TEST_TOKEN when UNIQUE_TEST_TOKEN is absent', function (): void {
     $_SERVER['TEST_TOKEN'] = '3';
 
-    expect(tiaWorkerToken())->toBe('3');
+    expect(tiaWorkerToken())->toBe('3-'.getmypid());
 });

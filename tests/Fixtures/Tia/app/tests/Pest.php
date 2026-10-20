@@ -2,5 +2,5 @@
 
 declare(strict_types=1);
 
-require_once __DIR__.'/../app/Calculator.php';
-require_once __DIR__.'/../app/Greeter.php';
+$loader = require __DIR__.'/../vendor/autoload.php';
+$loader->addPsr4('Fixture\\App\\', __DIR__.'/../app/');

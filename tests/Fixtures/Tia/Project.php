@@ -416,6 +416,7 @@ final class Project
     {
         $pestRoot = dirname(__DIR__, 3);
         $pest = $directory.'/vendor/pestphp/pest';
+        @mkdir($pest.'/.temp', 0755, true);
 
         foreach (['src', 'overrides', 'resources', 'stubs'] as $tree) {
             self::mirror($pestRoot.'/'.$tree, $pest.'/'.$tree);

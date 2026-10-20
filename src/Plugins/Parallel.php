@@ -23,6 +23,13 @@ final class Parallel implements HandlesArguments
 {
     use HandleArguments;
 
+    private static bool $enabledForRecording = false;
+
+    public static function enableForRecording(): void
+    {
+        self::$enabledForRecording = true;
+    }
+
     private const string GLOBAL_PREFIX = 'PEST_PARALLEL_GLOBAL_';
 
     private const array HANDLERS = [
@@ -38,6 +45,10 @@ final class Parallel implements HandlesArguments
 
     public static function isEnabled(): bool
     {
+        if (self::$enabledForRecording) {
+            return true;
+        }
+
         $argv = new ArgvInput;
 
         if ($argv->hasParameterOption('--parallel')) {

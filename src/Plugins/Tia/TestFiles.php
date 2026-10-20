@@ -7,6 +7,7 @@ namespace Pest\Plugins\Tia;
 use Pest\TestSuite;
 use PHPUnit\TextUI\Configuration\File;
 use PHPUnit\TextUI\Configuration\Registry;
+use PHPUnit\TextUI\Configuration\TestFile;
 use SebastianBergmann\FileIterator\Facade;
 
 /** @internal */
@@ -68,6 +69,28 @@ final readonly class TestFiles
         ));
 
         return new self($root, array_values(array_unique($directories)), $candidates, $bootstraps);
+    }
+
+    public static function bootstrapForFile(string $file): void
+    {
+        $configuration = Registry::get();
+        $bootstraps = $configuration->bootstrapForTestSuite();
+        foreach ($configuration->testSuite() as $suite) {
+            if (! isset($bootstraps[$suite->name()])) {
+                continue;
+            }
+            $paths = array_map(static fn (TestFile $entry): string => $entry->path(), $suite->files()->asArray());
+            $excluded = array_map(static fn (File $entry): string => $entry->path(), $suite->exclude()->asArray());
+            foreach ($suite->directories() as $directory) {
+                foreach (glob($directory->path(), GLOB_ONLYDIR) ?: [] as $path) {
+                    assert($path !== '');
+                    $paths = [...$paths, ...new Facade()->getFilesAsArray($path, $directory->suffix(), $directory->prefix(), $excluded)];
+                }
+            }
+            if (in_array($file, $paths, true)) {
+                require_once $bootstraps[$suite->name()];
+            }
+        }
     }
 
     public function isCandidate(string $relativePath): bool
