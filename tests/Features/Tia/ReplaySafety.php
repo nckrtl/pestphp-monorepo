@@ -178,3 +178,11 @@ test('environment drift clears inherited results as well as branch results', fun
     expect($graph->getResult('feature', 'inherited'))->toBeNull()
         ->and($graph->getResult('feature', 'own'))->toBeNull();
 });
+
+test('reset removes explicit watch ownership before another suite configures defaults', function (): void {
+    $watches = new Pest\Plugins\Tia\WatchPatterns;
+    $watches->add(['tests/Fixtures/**/*' => 'tests/OldConsumerTest.php']);
+    $watches->reset();
+    $watches->useDefaults(__DIR__);
+    expect($watches->matchedDirectories(__DIR__, ['tests/Fixtures/input.json']))->toBe(['tests']);
+});

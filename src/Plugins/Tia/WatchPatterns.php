@@ -227,6 +227,7 @@ final class WatchPatterns
     public function reset(): void
     {
         $this->patterns = [];
+        $this->explicitPatterns = [];
         $this->parsed = [];
         $this->enabled = false;
         $this->locally = false;
