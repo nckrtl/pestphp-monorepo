@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Pest\Plugins\Tia\Recorder;
 use Tests\Fixtures\Tia\Project;
 
 afterEach(function (): void {
@@ -9,6 +10,9 @@ afterEach(function (): void {
 });
 
 test('narrows to the affected tests on a new branch', function (): void {
+    if (! new Recorder()->driverAvailable()) {
+        $this->markTestSkipped('Refreshing edited PHP dependencies requires coverage.');
+    }
     $project = Project::make('master');
     $project->seed('master');
 

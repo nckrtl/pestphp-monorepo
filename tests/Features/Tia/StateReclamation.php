@@ -94,6 +94,9 @@ test('a complete run reclaims the entry and the edge of a deleted test file', fu
 })->with(Project::SEQUENTIAL_AND_PARALLEL)->skipOnWindows();
 
 test('a pruned result does not come back from the fallback', function (array $arguments): void {
+    if (! new Recorder()->driverAvailable()) {
+        $this->markTestSkipped('Refreshing edited PHP dependencies requires coverage.');
+    }
     $project = Project::make('master');
     $project->seed('master', failing: ['adds two numbers']);
 

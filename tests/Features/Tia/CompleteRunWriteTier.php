@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Pest\Plugins\Tia\Recorder;
 use Tests\Fixtures\Tia\Project;
 
 afterEach(function (): void {
@@ -200,6 +201,9 @@ test('a run that never enables tia creates no graph', function (array $arguments
 ])->skipOnWindows();
 
 test('a test edit narrows to the affected file and replays the rest', function (): void {
+    if (! new Recorder()->driverAvailable()) {
+        $this->markTestSkipped('Refreshing edited PHP dependencies requires coverage.');
+    }
     $project = Project::make('master');
     $project->seed('master');
 
@@ -231,6 +235,9 @@ test('a test edit narrows to the affected file and replays the rest', function (
 })->skipOnWindows();
 
 test('a parallel run merges worker results into the parent baseline', function (): void {
+    if (! new Recorder()->driverAvailable()) {
+        $this->markTestSkipped('Refreshing edited PHP dependencies requires coverage.');
+    }
     $project = Project::make('master');
     $project->seed('master');
 

@@ -89,7 +89,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         php: ['8.4', '8.5']
-        suite: [BinaryResults, PreciseSelection, ExplicitBase, ReplaySafety]
+        suite: [BinaryResults, PreciseSelection, ExplicitBase, ReplaySafety, CompleteRunWriteTier, DefaultBranchWriteTier, IssueStatuses, StateReclamation]
     steps:
     - name: Checkout
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
